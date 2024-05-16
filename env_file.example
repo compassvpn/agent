@@ -1,0 +1,26 @@
+# Metric push method - pushgateway or grafana_agent
+METRIC_PUSH_METHOD=grafana_agent
+
+# METRIC_PUSH_METHOD: grafana_agent
+GRAFANA_AGENT_REMOTE_WRITE_URL=
+GRAFANA_AGENT_REMOTE_WRITE_USER=
+GRAFANA_AGENT_REMOTE_WRITE_PASSWORD=
+
+# METRIC_PUSH_METHOD: pushgateway
+PUSHGATEWAY_URL=
+PUSHGATEWAY_AUTH_USER=
+PUSHGATEWAY_AUTH_PASSWORD=
+
+# name of the donor - will appear in all metrics as a label
+DONOR=noname
+
+REDEPLOY_INTERVAL= #e.g. 1d (1 day), 2m (2 months)
+
+IPINFO_API_TOKEN=
+CF_ENABLE=true
+CF_ONLY=false
+CF_API_TOKEN=
+CF_ZONE_ID=
+CF_CLEAN_IP_DOMAIN= # e.g. zula.ir, npmjs.com or ip address
+XRAY_OUTBOUND=direct # or warp
+SSL_PROVIDER=letsencrypt  # you can also zerossl

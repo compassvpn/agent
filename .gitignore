@@ -1,0 +1,4 @@
+env_file
+.git
+.env
+.idea

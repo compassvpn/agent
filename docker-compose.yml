@@ -1,0 +1,92 @@
+version: "3.7"
+
+services:
+  xray-config:
+    build:
+      context: ./xray-config
+      dockerfile: Dockerfile
+    restart: always
+    env_file:
+      - env_file
+    volumes:
+      - "/etc/machine-id:/host/etc/machine-id"
+      - "acme:/root/.acme.sh/"
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "1m"  # Limit log file size to 1 MB
+        max-file: "1"    # Retain up to 3 log files (rotate)
+  xray:
+    build:
+      context: ./xray
+      dockerfile: Dockerfile
+    cap_add:
+      - NET_ADMIN
+    restart: always
+    env_file:
+      - env_file
+    depends_on:
+      - xray-config
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "1m"  # Limit log file size to 1 MB
+        max-file: "3"    # Retain up to 3 log files (rotate)
+    ports:
+      - "2053:2053"
+      - "2053:2053/udp"
+      - "2083:2083"
+      - "2083:2083/udp"
+      - "8443:8443"
+      - "8443:8443/udp"
+      - "2086:2086"
+      - "2096:2096"
+      - "2082:2082"
+      - "2082:2082/udp"
+      - "443:443"
+  v2ray-exporter:
+    build:
+      context: ./v2ray-exporter
+      dockerfile: Dockerfile
+    restart: always
+    depends_on:
+      - xray
+  metric-forwarder:
+    build:
+      context: ./metric-forwarder
+      dockerfile: Dockerfile
+    restart: always
+    env_file:
+      - env_file
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    depends_on:
+      - xray-config
+      - node-exporter
+  node-exporter:
+    image: prom/node-exporter:v1.7.0
+    restart: always
+    network_mode: host  # needs to access to the host network interfaces
+    volumes:
+      - "/proc:/host/proc:ro"
+      - "/sys:/host/sys:ro"
+      - "/:/rootfs:ro"
+      - "/var/run/docker.sock:/var/run/docker.sock"
+    command:
+      - "--path.procfs=/host/proc"
+      - "--path.sysfs=/host/sys"
+      - '--collector.disable-defaults'
+      - '--collector.uname'
+      - '--collector.cpu'
+      - '--collector.meminfo'
+      - '--collector.filesystem'
+      - '--collector.netdev'
+      - '--collector.time'
+      - '--collector.stat'
+      - '--collector.pressure'
+      - "--web.listen-address=172.17.0.1:9100" # only allow access from host.docker.internal interface
+#      - "--web.listen-address=0.0.0.0:9100" # only allow access from host.docker.internal interface
+
+
+volumes:
+  acme:

@@ -1,0 +1,88 @@
+# Compass VPN Agent
+
+## Features
+1. One command VPN setup and remote monitoring
+2. Send metrics and created configs' link to a central dashboard
+3. Collect vital VM metrics such as CPU, Memory usage and Traffic 
+4. Auto Cloudflare DNS management
+5. Direct configs or configs behind Cloudflare proxy
+6. Auto certificate generation for TLS configs (zerossl or letsencrypt)
+7. Support Warp and Direct outbound
+8. Auto discovery of the best Warp endpoint and auto rotation
+9. Create variety of VPN configs
+10. Auto new version update
+11. Auto configs rotation
+12. Auto block torrent or internal websites (download geosite files automatically)
+13. Support Free Grafana Cloud or Pushgateway for metric collection and dashboard
+14. Configs self testing using xray-knife
+15. and more...
+
+## Requirements
+* AMD64 VPS (2 vCPU and 2GB RAM recommended)
+* Ubuntu 20.04, 22.04 or 24.04
+
+## Services
+
+### xray-config
+Creates config.json, monitor configs and export xray configs via /metrics path.
+
+### xray
+This service reads config.json from xray-config service and runs the xray-core.
+
+### v2ray-exporter
+Export v2ray configs metrics
+
+### node-exporter
+Prometheus node exporter that collects all important metrics of the agent machine.
+
+### metric-forwarder
+Reads xray-config, node-exporter and v2ray-exporter metrics and push them to the remote manager pushgateway service or Grafana Cloud promotheus endpoint.
+
+# How to run
+
+The following must run on a VPS that you want to use as a VPN server.
+
+## Clone
+1. git clone https://github.com/compassvpn/agent.git
+2. cd agent
+
+## Configure env_file
+1. cp env_file.example env_file
+2. set METRIC_PUSH_METHOD to either "pushgateway" or "grafana_cloud"
+3. if METRIC_PUSH_METHOD=pushgateway:
+      * set PUSHGATEWAY_URL (pushgateway URL)
+      * set PUSHGATEWAY_AUTH_USER (pushgateway basic auth user, this user will be added as label to the prom. metrics)
+      * set PUSHGATEWAY_AUTH_USER (pushgateway basic auth user, this user will be added as label to the prom. metrics)
+      * set PUSHGATEWAY_AUTH_PASSWORD (pushgateway basic auth password)
+4. if METRIC_PUSH_METHOD=grafanacloud (use this instruction for creating a new Grafana Cloud account)
+      * set GRAFANA_AGENT_REMOTE_WRITE_URL
+      * set GRAFANA_AGENT_REMOTE_WRITE_USER
+      * set GRAFANA_AGENT_REMOTE_WRITE_PASSWORD
+5. DONOR=noname (will be used as a label in the promtheus metrics)
+6. REDEPLOY_INTERVAL (reset IDENTIFIER and create new configs on each interval. e.g: 1d=1 day, 14d=every two weeks)
+7. IPINFO_API_TOKEN (https://ipinfo.io/signup - not mandatory)
+8. CF_ENABLE (true or false)
+9. CF_ONLY (true or false) - if the ip of the server is not clean (already filtered), set this to "true"
+10. CF_API_TOKEN (https://developers.cloudflare.com/fundamentals/api/get-started/create-token/ - for one zone)
+11. CF_ZONE_ID (zone id that is selected when creating CF API token)
+12. SSL_PROVIDER=letsencrypt (or zerossl)
+13. XRAY_OUTBOUND=direct # or warp
+
+## Commands
+
+### Bootstrap - first time
+```
+./bootstrap.sh
+```
+
+### Rebuild and restart all services
+```
+./restart.sh
+```
+
+### Update
+```
+./update.sh
+./restart.sh
+```
+
