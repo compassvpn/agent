@@ -38,7 +38,7 @@ if command_not_exists docker-compose; then
   echo "install docker and docker-compose"
   sudo apt update && sudo apt install -y docker.io
   if [[ $ubuntu_release == "24.04" ]]; then
-      curl -L "https://github.com/docker/compose/releases/v2.28.1/download/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
+      curl -L "https://github.com/docker/compose/releases/download/v2.28.1/docker-compose-linux-x86_64" -o /usr/local/bin/docker-compose
       chmod +x /usr/local/bin/docker-compose
   else
       sudo apt install -y docker-compose
