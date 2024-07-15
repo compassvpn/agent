@@ -54,7 +54,7 @@ The following must run on a VPS that you want to use as a VPN server.
       * set PUSHGATEWAY_AUTH_USER (pushgateway basic auth user, this user will be added as label to the prom. metrics)
       * set PUSHGATEWAY_AUTH_USER (pushgateway basic auth user, this user will be added as label to the prom. metrics)
       * set PUSHGATEWAY_AUTH_PASSWORD (pushgateway basic auth password)
-4. if METRIC_PUSH_METHOD=grafanacloud (use this instruction for creating a new Grafana Cloud account)
+4. if METRIC_PUSH_METHOD=grafana_agent (use this instruction for creating a new Grafana Cloud account)
       * set GRAFANA_AGENT_REMOTE_WRITE_URL
       * set GRAFANA_AGENT_REMOTE_WRITE_USER
       * set GRAFANA_AGENT_REMOTE_WRITE_PASSWORD
