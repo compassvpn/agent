@@ -24,3 +24,4 @@ CF_ZONE_ID=
 CF_CLEAN_IP_DOMAIN= # e.g. zula.ir, npmjs.com or ip address
 XRAY_OUTBOUND=direct # or warp
 SSL_PROVIDER=letsencrypt  # you can also zerossl
+AUTO_UPDATE=on  # off (disable auto update)
