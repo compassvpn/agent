@@ -10,7 +10,7 @@
 7. Support Warp and Direct outbound
 8. Auto discovery of the best Warp endpoint and auto rotation
 9. Create variety of VPN configs
-10. Auto new version update
+10. Auto update
 11. Auto configs rotation
 12. Auto block torrent or internal websites (download geosite files automatically)
 13. Support Free Grafana Cloud or Pushgateway for metric collection and dashboard
@@ -38,6 +38,11 @@ Prometheus node exporter that collects all important metrics of the agent machin
 ### metric-forwarder
 Reads xray-config, node-exporter and v2ray-exporter metrics and push them to the remote manager pushgateway service or Grafana Cloud promotheus endpoint.
 
+## Setup Manager
+Please follow [this tutorial](https://github.com/compassvpn/manager) to create a manager (Options: Grafana Cloud or hosted Grafana+Prometheus). 
+
+We need authentication values from the manager to include in the "env_file" of the agent.
+
 # How to run
 
 The following must run on a VPS that you want to use as a VPN server.
@@ -48,16 +53,15 @@ The following must run on a VPS that you want to use as a VPN server.
 
 ## Configure env_file
 1. cp env_file.example env_file
-2. set METRIC_PUSH_METHOD to either "pushgateway" or "grafana_cloud"
-3. if METRIC_PUSH_METHOD=pushgateway:
-      * set PUSHGATEWAY_URL (pushgateway URL)
-      * set PUSHGATEWAY_AUTH_USER (pushgateway basic auth user, this user will be added as label to the prom. metrics)
-      * set PUSHGATEWAY_AUTH_USER (pushgateway basic auth user, this user will be added as label to the prom. metrics)
-      * set PUSHGATEWAY_AUTH_PASSWORD (pushgateway basic auth password)
-4. if METRIC_PUSH_METHOD=grafana_agent (use this instruction for creating a new Grafana Cloud account)
+2. set METRIC_PUSH_METHOD to either "pushgateway" or "grafana_cloud" (depending on your selected option for the Manager)
+3. if METRIC_PUSH_METHOD=grafana_agent (comes from the manager setup [[Option 1](https://github.com/compassvpn/manager?tab=readme-ov-file#option-1-use-garafana-cloud)])
       * set GRAFANA_AGENT_REMOTE_WRITE_URL
       * set GRAFANA_AGENT_REMOTE_WRITE_USER
       * set GRAFANA_AGENT_REMOTE_WRITE_PASSWORD
+4. if METRIC_PUSH_METHOD=pushgateway (comes from the manager setup [[Option 2](https://github.com/compassvpn/manager?tab=readme-ov-file#option-2-deploy-your-own-server)])
+      * set PUSHGATEWAY_URL (pushgateway URL)
+      * set PUSHGATEWAY_AUTH_USER (pushgateway basic auth user)
+      * set PUSHGATEWAY_AUTH_PASSWORD (pushgateway basic auth password)
 5. DONOR=noname (will be used as a label in the promtheus metrics)
 6. REDEPLOY_INTERVAL (reset IDENTIFIER and create new configs on each interval. e.g: 1d=1 day, 14d=every two weeks)
 7. IPINFO_API_TOKEN (https://ipinfo.io/signup - not mandatory)
@@ -67,6 +71,7 @@ The following must run on a VPS that you want to use as a VPN server.
 11. CF_ZONE_ID (zone id that is selected when creating CF API token)
 12. SSL_PROVIDER=letsencrypt (or zerossl)
 13. XRAY_OUTBOUND=direct # or warp
+14. AUTO_UPDATE=on or off ("off" if it's not provided or commented)
 
 ## Commands
 
