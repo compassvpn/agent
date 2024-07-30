@@ -127,7 +127,7 @@ if os.environ.get('CF_ENABLE', '') == 'true':
 
         if not cf_only:
             direct_subdomain = f"{a_record}-direct.{domain}"
-            if os.environ.get('SSL_PROVIDER', 'letsencrypt'):
+            if os.environ.get('SSL_PROVIDER', 'letsencrypt') == "letsencrypt":
                 ssl_provider_server = "--server letsencrypt"
             else:
                 ssl_provider_server = "--server zerossl"
