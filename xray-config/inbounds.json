@@ -1,0 +1,345 @@
+[
+  {
+    "link": "trojan://$config_id@$cf_clean_ip_domain:2083?security=tls&type=ws&headerType=&path=&host=$subdomain&sni=$subdomain&fp=&alpn=#Trojan ws cf",
+    "cloudflare": true,
+    "inbound": {
+      "tag": "Trojan Websocket TLS",
+      "listen": "0.0.0.0",
+      "port": 2083,
+      "protocol": "trojan",
+      "settings": {
+        "clients": [
+          {
+            "password": "$config_id",
+            "email": "$config_id"
+          }
+        ]
+      },
+      "streamSettings": {
+        "network": "ws",
+        "security": "tls",
+        "tlsSettings": {
+          "certificates": [
+            {
+              "certificate": [
+                "-----BEGIN CERTIFICATE-----",
+                "MIIBvTCCAWOgAwIBAgIRAIY9Lzn0T3VFedUnT9idYkEwCgYIKoZIzj0EAwIwJjER",
+                "MA8GA1UEChMIWHJheSBJbmMxETAPBgNVBAMTCFhyYXkgSW5jMB4XDTIzMDUyMTA4",
+                "NDUxMVoXDTMzMDMyOTA5NDUxMVowJjERMA8GA1UEChMIWHJheSBJbmMxETAPBgNV",
+                "BAMTCFhyYXkgSW5jMFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEGAmB8CILK7Q1",
+                "FG47g5VXg/oX3EFQqlW8B0aZAftYpHGLm4hEYVA4MasoGSxRuborhGu3lDvlt0cZ",
+                "aQTLvO/IK6NyMHAwDgYDVR0PAQH/BAQDAgWgMBMGA1UdJQQMMAoGCCsGAQUFBwMB",
+                "MAwGA1UdEwEB/wQCMAAwOwYDVR0RBDQwMoILZ3N0YXRpYy5jb22CDSouZ3N0YXRp",
+                "Yy5jb22CFCoubWV0cmljLmdzdGF0aWMuY29tMAoGCCqGSM49BAMCA0gAMEUCIQC1",
+                "XMIz1XwJrcu3BSZQFlNteutyepHrIttrtsfdd05YsQIgAtCg53wGUSSOYGL8921d",
+                "KuUcpBWSPkvH6y3Ak+YsTMg=",
+                "-----END CERTIFICATE-----"
+              ],
+              "key": [
+                "-----BEGIN RSA PRIVATE KEY-----",
+                "MIGHAgEAMBMGByqGSM49AgEGCCqGSM49AwEHBG0wawIBAQQg7ptMDsNFiL7iB5N5",
+                "gemkQUHIWvgIet+GiY7x7qB13V6hRANCAAQYCYHwIgsrtDUUbjuDlVeD+hfcQVCq",
+                "VbwHRpkB+1ikcYubiERhUDgxqygZLFG5uiuEa7eUO+W3RxlpBMu878gr",
+                "-----END RSA PRIVATE KEY-----"
+              ]
+            }
+          ],
+          "minVersion": "1.2",
+          "cipherSuites": "TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305_SHA256:TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256:TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384:TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384:TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256:TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256"
+        }
+      },
+      "sniffing": {
+        "enabled": false,
+        "destOverride": [
+          "http",
+          "tls"
+        ]
+      }
+    }
+  },
+  {
+    "link": "vless://$config_id@$cf_clean_ip_domain:2096?type=grpc&serviceName=&authority=&security=tls&fp=safari&alpn=h2%2Chttp%2F1.1&sni=$subdomain#vless grpc cf",
+    "cloudflare": true,
+    "inbound": {
+      "listen": "0.0.0.0",
+      "port": 2096,
+      "protocol": "vless",
+      "settings": {
+        "clients": [
+          {
+            "email": "$config_id",
+            "flow": "",
+            "id": "$config_uuid"
+          }
+        ],
+        "decryption": "none",
+        "fallbacks": []
+      },
+      "streamSettings": {
+        "grpcSettings": {
+          "authority": "",
+          "multiMode": false,
+          "serviceName": ""
+        },
+        "network": "grpc",
+        "security": "tls",
+        "tlsSettings": {
+          "alpn": [
+            "h2",
+            "http/1.1"
+          ],
+          "certificates": [
+            {
+              "certificate": [
+                "-----BEGIN CERTIFICATE-----",
+                "MIIBvTCCAWOgAwIBAgIRAIY9Lzn0T3VFedUnT9idYkEwCgYIKoZIzj0EAwIwJjER",
+                "MA8GA1UEChMIWHJheSBJbmMxETAPBgNVBAMTCFhyYXkgSW5jMB4XDTIzMDUyMTA4",
+                "NDUxMVoXDTMzMDMyOTA5NDUxMVowJjERMA8GA1UEChMIWHJheSBJbmMxETAPBgNV",
+                "BAMTCFhyYXkgSW5jMFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEGAmB8CILK7Q1",
+                "FG47g5VXg/oX3EFQqlW8B0aZAftYpHGLm4hEYVA4MasoGSxRuborhGu3lDvlt0cZ",
+                "aQTLvO/IK6NyMHAwDgYDVR0PAQH/BAQDAgWgMBMGA1UdJQQMMAoGCCsGAQUFBwMB",
+                "MAwGA1UdEwEB/wQCMAAwOwYDVR0RBDQwMoILZ3N0YXRpYy5jb22CDSouZ3N0YXRp",
+                "Yy5jb22CFCoubWV0cmljLmdzdGF0aWMuY29tMAoGCCqGSM49BAMCA0gAMEUCIQC1",
+                "XMIz1XwJrcu3BSZQFlNteutyepHrIttrtsfdd05YsQIgAtCg53wGUSSOYGL8921d",
+                "KuUcpBWSPkvH6y3Ak+YsTMg=",
+                "-----END CERTIFICATE-----"
+              ],
+              "key": [
+                "-----BEGIN RSA PRIVATE KEY-----",
+                "MIGHAgEAMBMGByqGSM49AgEGCCqGSM49AwEHBG0wawIBAQQg7ptMDsNFiL7iB5N5",
+                "gemkQUHIWvgIet+GiY7x7qB13V6hRANCAAQYCYHwIgsrtDUUbjuDlVeD+hfcQVCq",
+                "VbwHRpkB+1ikcYubiERhUDgxqygZLFG5uiuEa7eUO+W3RxlpBMu878gr",
+                "-----END RSA PRIVATE KEY-----"
+              ]
+            }
+          ],
+          "cipherSuites": "",
+          "maxVersion": "1.3",
+          "minVersion": "1.1",
+          "rejectUnknownSni": false,
+          "serverName": "$subdomain"
+        }
+      },
+      "tag": "inbound-2096",
+      "sniffing": {
+        "enabled": false,
+        "destOverride": [
+          "http",
+          "tls",
+          "quic",
+          "fakedns"
+        ]
+      }
+    }
+  },
+  {
+    "link": "vless://$config_id@$direct_subdomain:2053?type=tcp&security=tls&fp=&alpn=h2%2Chttp%2F1.1&sni=$direct_subdomain#vless tcp tls direct",
+    "cloudflare": false,
+    "inbound": {
+      "listen": "0.0.0.0",
+      "port": 2053,
+      "protocol": "vless",
+      "settings": {
+        "clients": [
+          {
+            "email": "$config_id",
+            "flow": "",
+            "id": "$config_uuid"
+          }
+        ],
+        "decryption": "none",
+        "fallbacks": []
+      },
+      "streamSettings": {
+        "network": "tcp",
+        "security": "tls",
+        "tcpSettings": {
+          "acceptProxyProtocol": false,
+          "header": {
+            "type": "none"
+          }
+        },
+        "tlsSettings": {
+          "alpn": [
+            "h2",
+            "http/1.1"
+          ],
+          "certificates": [
+            {
+              "certificate": [
+                "$cert_public"
+              ],
+              "key": [
+                "$cert_private"
+              ],
+              "ocspStapling": 3600
+            }
+          ],
+          "cipherSuites": "",
+          "maxVersion": "1.3",
+          "minVersion": "1.1",
+          "rejectUnknownSni": false,
+          "serverName": "$direct_subdomain"
+        }
+      },
+      "tag": "inbound-2053",
+      "sniffing": {
+        "enabled": false,
+        "destOverride": [
+          "http",
+          "tls",
+          "quic",
+          "fakedns"
+        ]
+      }
+    }
+  },
+  {
+    "link": "vless://$config_id@$direct_subdomain:2086?type=grpc&serviceName=&authority=&security=tls&fp=&alpn=h2%2Chttp%2F1.1#vless grpc tls",
+    "cloudflare": false,
+    "inbound": {
+      "listen": "0.0.0.0",
+      "port": 2086,
+      "protocol": "vless",
+      "settings": {
+        "clients": [
+          {
+            "email": "$config_id",
+            "flow": "",
+            "id": "$config_uuid"
+          }
+        ],
+        "decryption": "none",
+        "fallbacks": []
+      },
+      "streamSettings": {
+        "grpcSettings": {
+          "authority": "",
+          "multiMode": false,
+          "serviceName": ""
+        },
+        "network": "grpc",
+        "security": "tls",
+        "tlsSettings": {
+          "alpn": [
+            "h2",
+            "http/1.1"
+          ],
+          "certificates": [
+            {
+              "certificate": [
+                "$cert_public"
+              ],
+              "key": [
+                "$cert_private"
+              ],
+              "ocspStapling": 3600
+            }
+          ],
+          "cipherSuites": "",
+          "maxVersion": "1.3",
+          "minVersion": "1.1",
+          "rejectUnknownSni": false,
+          "serverName": ""
+        }
+      },
+      "tag": "inbound-2086",
+      "sniffing": {
+        "enabled": false,
+        "destOverride": [
+          "http",
+          "tls",
+          "quic",
+          "fakedns"
+        ]
+      }
+    }
+  },
+  {
+    "link": "vless://$config_id@$server_ip:8443?security=reality&type=tcp&headerType=&flow=xtls-rprx-vision&path=&host=&sni=discordapp.com&fp=chrome&pbk=SbVKOEMjK0sIlbwg4akyBg5mL5KZwwB-ed4eEE7YnRc&sid=&spx=#VLESS Reality tcp",
+    "cloudflare": false,
+    "inbound": {
+      "tag": "VLESS TCP REALITY",
+      "listen": "0.0.0.0",
+      "port": 8443,
+      "protocol": "vless",
+      "settings": {
+        "clients": [
+          {
+            "email": "$config_id",
+            "flow": "xtls-rprx-vision",
+            "id": "$config_uuid"
+          }
+        ],
+        "decryption": "none"
+      },
+      "streamSettings": {
+        "network": "tcp",
+        "tcpSettings": {},
+        "security": "reality",
+        "realitySettings": {
+          "show": false,
+          "dest": "discordapp.com:443",
+          "xver": 0,
+          "serverNames": [
+            "cdn.discordapp.com",
+            "discordapp.com"
+          ],
+          "privateKey": "MMX7m0Mj3faUstoEm5NBdegeXkHG6ZB78xzBv2n3ZUA",
+          "shortIds": [
+            "",
+            "6ba85179e30d4fc2"
+          ]
+        }
+      },
+      "sniffing": {
+        "enabled": false,
+        "destOverride": [
+          "http",
+          "tls"
+        ]
+      }
+    }
+  },
+  {
+    "link": "vless://$config_id@$server_ip:2082?type=quic&quicSecurity=aes-128-gcm&key=$config_id&headerType=srtp&security=none#vless quic",
+    "cloudflare": false,
+    "inbound": {
+      "listen": null,
+      "port": 2082,
+      "protocol": "vless",
+      "settings": {
+        "clients": [
+          {
+            "email": "$config_id",
+            "flow": "",
+            "id": "$config_uuid"
+          }
+        ],
+        "decryption": "none",
+        "fallbacks": []
+      },
+      "streamSettings": {
+        "network": "quic",
+        "quicSettings": {
+          "header": {
+            "type": "srtp"
+          },
+          "key": "$config_id",
+          "security": "aes-128-gcm"
+        },
+        "security": "none"
+      },
+      "tag": "inbound-2082",
+      "sniffing": {
+        "enabled": false,
+        "destOverride": [
+          "http",
+          "tls",
+          "quic",
+          "fakedns"
+        ]
+      }
+    }
+  }
+]
