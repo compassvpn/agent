@@ -1,10 +1,11 @@
+import base64
 import json
 import os
 import string
 
 import requests
 
-from utils import get_identifier, get_public_ip, register_warp, find_warp_endpoint
+from utils import get_identifier, get_public_ip, register_warp, find_warp_endpoint, alter_vmess_link
 
 config_id = get_identifier()
 
@@ -167,6 +168,9 @@ with open("inbounds.json") as f:
                                                            "cert_public": cert_public,
                                                            "cert_private": cert_private}))
     configured_inbounds = [inbound for inbound in all_inbounds if inbound.get("name") in xray_inbounds]
+    for inbound in configured_inbounds:
+        if isinstance(inbound.get("link"), dict):
+            inbound["link"] = "vmess://" + base64.b64encode(json.dumps(inbound["link"]).encode()).decode()
 
 
 def get_config_links():
