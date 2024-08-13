@@ -23,6 +23,6 @@ CF_API_TOKEN=
 CF_ZONE_ID=
 CF_CLEAN_IP_DOMAIN= # e.g. zula.ir, npmjs.com or ip address
 XRAY_OUTBOUND=direct # or warp
-XRAY_INBOUNDS=trojan-ws-tls-cdn,vless-grpc-cdn,vless-tcp-tls,vless-grpc-tls,reality-tcp,vless-quic
+XRAY_INBOUNDS=trojan-ws-tls-cdn,vless-grpc-cdn,vless-tcp-tls,vless-grpc-tls,vless-tcp-reality,vless-quic
 SSL_PROVIDER=letsencrypt  # you can also zerossl
 AUTO_UPDATE=on  # off (disable auto update)

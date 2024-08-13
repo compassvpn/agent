@@ -260,7 +260,7 @@
     }
   },
   {
-    "name": "reality-tcp",
+    "name": "vless-tcp-reality",
     "link": "vless://$config_id@$server_ip:8443?security=reality&type=tcp&headerType=&flow=xtls-rprx-vision&path=&host=&sni=discordapp.com&fp=chrome&pbk=SbVKOEMjK0sIlbwg4akyBg5mL5KZwwB-ed4eEE7YnRc&sid=&spx=#VLESS Reality tcp",
     "cloudflare": false,
     "inbound": {
