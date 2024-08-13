@@ -14,6 +14,8 @@ cf_only = os.environ.get('CF_ONLY', 'false') in ['True', 'true', 'yes']
 cf_enable = os.environ.get('CF_ENABLE', 'false') in ['True', 'true', 'yes']
 cf_api_token = os.environ.get('CF_API_TOKEN', None)
 cf_zone_id = os.environ.get('CF_ZONE_ID', None)
+xray_inbounds = os.environ.get("XRAY_INBOUNDS", "").split(",")
+
 domain = None
 subdomain = None
 direct_subdomain = None
@@ -156,14 +158,15 @@ cf_clean_ip_domain = os.environ.get('CF_CLIENT_IP_DOMAIN', 'npmjs.com')
 
 with open("inbounds.json") as f:
     inbound_template = string.Template(f.read())
-    configured_inbounds = json.loads(inbound_template.substitute({"config_id": config_id,
-                                                                  "config_uuid": config_uuid,
-                                                                  "cf_clean_ip_domain": cf_clean_ip_domain,
-                                                                  "server_ip": server_ip,
-                                                                  "direct_subdomain": direct_subdomain,
-                                                                  "subdomain": subdomain,
-                                                                  "cert_public": cert_public,
-                                                                  "cert_private": cert_private}))
+    all_inbounds = json.loads(inbound_template.substitute({"config_id": config_id,
+                                                           "config_uuid": config_uuid,
+                                                           "cf_clean_ip_domain": cf_clean_ip_domain,
+                                                           "server_ip": server_ip,
+                                                           "direct_subdomain": direct_subdomain,
+                                                           "subdomain": subdomain,
+                                                           "cert_public": cert_public,
+                                                           "cert_private": cert_private}))
+    configured_inbounds = [inbound for inbound in all_inbounds if inbound.get("name") in xray_inbounds]
 
 
 def get_config_links():
