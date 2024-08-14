@@ -5,7 +5,7 @@ import string
 
 import requests
 
-from utils import get_identifier, get_public_ip, register_warp, find_warp_endpoint, alter_vmess_link
+from utils import get_identifier, get_public_ip, register_warp, find_warp_endpoint
 
 config_id = get_identifier()
 
