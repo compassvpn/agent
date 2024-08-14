@@ -176,9 +176,9 @@ with open("inbounds.json") as f:
 def get_config_links():
     configs = []
     if subdomain:
-        configs.extend([inbound.get("link", "") for inbound in configured_inbounds if inbound.get("couldflare", False)])
+        configs.extend([inbound.get("link", "") for inbound in configured_inbounds if inbound.get("cloudflare", False)])
         if not cf_only:
-            configs.extend([inbound.get("link", "") for inbound in configured_inbounds if inbound.get("couldflare", False) is False])
+            configs.extend([inbound.get("link", "") for inbound in configured_inbounds if inbound.get("cloudflare", False) is False])
     return configs
 
 inbounds = [{
@@ -191,10 +191,10 @@ inbounds = [{
     "tag": "api"
 }]
 if cf_enable:
-    inbounds.extend([inbound["inbound"] for inbound in configured_inbounds if inbound.get("couldflare", False)])
+    inbounds.extend([inbound["inbound"] for inbound in configured_inbounds if inbound.get("cloudflare", False)])
 
 if not cf_only:
-    inbounds.extend([inbound["inbound"] for inbound in configured_inbounds if inbound.get("couldflare", False) is False])
+    inbounds.extend([inbound["inbound"] for inbound in configured_inbounds if inbound.get("cloudflare", False) is False])
 
 xray_config = {
     "log": {
