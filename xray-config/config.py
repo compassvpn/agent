@@ -150,8 +150,10 @@ if os.environ.get('CF_ENABLE', '') == 'true':
                 os.system("ls /root/.acme.sh/")
             with open(f"/root/.acme.sh/{direct_subdomain}_ecc/fullchain.cer", 'r') as file:
                 cert_public = file.read()
+                cert_public = json.dumps(cert_public)[1:-1]
             with open(f"/root/.acme.sh/{direct_subdomain}_ecc/{direct_subdomain}.key", 'r') as file:
                 cert_private = file.read()
+                cert_private = json.dumps(cert_private)[1:-1]
 
     initialized = True
 
