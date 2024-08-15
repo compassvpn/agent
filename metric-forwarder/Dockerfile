@@ -1,8 +1,9 @@
 FROM python:3.11.9-bullseye
 
-RUN wget https://github.com/grafana/agent/releases/download/v0.41.0/grafana-agent-0.41.0-1.amd64.deb && \
-    dpkg -i grafana-agent-0.41.0-1.amd64.deb && \
-    rm grafana-agent-0.41.0-1.amd64.deb
+RUN arch=$(uname -m) && arch_name=$( [ "$arch" = "x86_64" ] && echo "amd64" ) || ( [ "$arch" = "aarch64" ] && echo "arm64" ) && \
+    wget -O ga.deb https://github.com/grafana/agent/releases/download/v0.41.0/grafana-agent-0.41.0-1.$arch_name.deb && \
+    dpkg -i ga.deb && \
+    rm ga.deb
 
 COPY requirements.txt requirements.txt
 
