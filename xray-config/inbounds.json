@@ -350,7 +350,7 @@
   },
   {
     "name": "vless-grpc-reality",
-    "link": "vless://$config_id@$server_ip:9443?security=reality&type=grpc&serviceName=xyz&flow=xtls-rprx-vision&sni=discordapp.com&fp=chrome&pbk=n1IsAplMbhyZMQbgu9Y_rS8_g3_VocvvHzWJRj4X6g8&sid=7ae6dcd52155d9c5#Reality grpc",
+    "link": "vless://$config_id@$server_ip:9443?security=reality&type=grpc&serviceName=xyz&flow=&sni=discordapp.com&fp=chrome&pbk=n1IsAplMbhyZMQbgu9Y_rS8_g3_VocvvHzWJRj4X6g8&sid=7ae6dcd52155d9c5#Reality grpc",
     "cloudflare": false,
     "inbound": {
       "tag": "VLESS GRPC REALITY",
@@ -361,7 +361,7 @@
         "clients": [
           {
             "email": "$config_id",
-            "flow": "xtls-rprx-vision",
+            "flow": "",
             "id": "$config_id"
           }
         ],
@@ -419,8 +419,6 @@
       "streamSettings": {
         "network": "httpupgrade",
         "httpupgradeSettings": {
-          "path": "/",
-          "host": ""
         },
         "security": "tls",
         "tlsSettings": {
