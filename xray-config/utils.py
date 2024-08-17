@@ -1,4 +1,6 @@
+import base64
 import csv
+import json
 import os
 import urllib.parse
 import subprocess
@@ -103,25 +105,27 @@ def csv_to_dict(file_path):
 
 
 def parse_config_link(link):
-    protocol = link.split("://")[0]
+    protocol, url_without_protocol = link.split("://")
 
-    url_without_protocol = link.split('://')[1]
+    if protocol == "vmess":
+        payload = json.loads(base64.b64decode(url_without_protocol).decode())
+        user, port, host, security, config_type = payload["id"], payload["port"], payload["add"], payload["tls"], payload["net"]
+    else:
+        # Split the URL into user_info, host_port, and query
+        user_info, host_port_query = url_without_protocol.split('@', 1)
 
-    # Split the URL into user_info, host_port, and query
-    user_info, host_port_query = url_without_protocol.split('@', 1)
+        # Split host_port_query into host_port and query
+        host_port, query_string = host_port_query.split('?', 1)
 
-    # Split host_port_query into host_port and query
-    host_port, query_string = host_port_query.split('?', 1)
+        # Extract parameters from the query string
+        query_params = urllib.parse.parse_qs(query_string.split("#")[0])
 
-    # Extract parameters from the query string
-    query_params = urllib.parse.parse_qs(query_string.split("#")[0])
-
-    # Extract individual parameters
-    user = user_info
-    host = host_port.split(':')[0]
-    port = int(host_port.split(':')[1])
-    security = query_params.get('security', [''])[0]
-    config_type = query_params.get('type', [''])[0]
+        # Extract individual parameters
+        user = user_info
+        host = host_port.split(':')[0]
+        port = int(host_port.split(':')[1])
+        security = query_params.get('security', [''])[0]
+        config_type = query_params.get('type', [''])[0]
 
     return {
         'protocol': protocol,

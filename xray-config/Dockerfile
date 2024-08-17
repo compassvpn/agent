@@ -22,5 +22,6 @@ RUN curl https://get.acme.sh | sh
 COPY utils.py utils.py
 COPY config.py config.py
 COPY run.py run.py
+COPY inbounds.json inbounds.json
 
 CMD ["python3", "run.py"]

@@ -72,7 +72,8 @@ The following must run on a VPS that you want to use as a VPN server.
 11. CF_ZONE_ID (zone id that is selected when creating CF API token)
 12. SSL_PROVIDER=letsencrypt (or zerossl)
 13. XRAY_OUTBOUND=direct # or warp
-14. AUTO_UPDATE=on or off ("off" if it's not provided or commented)
+14. set XRAY_INBOUNDS to your desired inbounds, listed in inbounds.json
+15. AUTO_UPDATE=on or off ("off" if it's not provided or commented)
 
 ## Commands
 
