@@ -1,4 +1,5 @@
 #!/usr/bin/bash
+set -e
 
 source env_file
 
@@ -13,37 +14,7 @@ if [ "$EUID" -ne 0 ]; then
     exit 1
 fi
 
-# Check if lsb_release command exists
-if ! command -v lsb_release &>/dev/null; then
-    echo "lsb_release command not found. Please make sure you are running this script on Ubuntu."
-    exit 1
-fi
-
-# Get Ubuntu release information
-ubuntu_release=$(lsb_release -rs)
-
-# Check if the release is Ubuntu 20.04 or 22.04
-if [[ $ubuntu_release == "20.04" ]]; then
-    echo "Ubuntu 20.04"
-elif [[ $ubuntu_release == "22.04" ]]; then
-    echo "Ubuntu 22.04"
-elif [[ $ubuntu_release == "24.04" ]]; then
-    echo "Ubuntu 24.04"
-else
-    echo "This script is intended to run on Ubuntu 20.04, 22.04 or 24.04."
-    exit 1
-fi
-
-if command_not_exists docker-compose; then
-  echo "install docker and docker-compose"
-  sudo apt update && sudo apt install -y docker.io
-  if [[ $ubuntu_release == "24.04" ]]; then
-      curl -L "https://github.com/docker/compose/releases/download/v2.28.1/docker-compose-linux-x86_64" -o /usr/local/bin/docker-compose
-      chmod +x /usr/local/bin/docker-compose
-  else
-      sudo apt install -y docker-compose
-  fi
-fi
+curl -fsSL https://get.docker.com | sh
 
 file_path="env_file"
 if [ -f $file_path ]; then
@@ -61,4 +32,4 @@ echo "IDENTIFIER=$identifier" >> ./env_file
 # setup redeploy cron
 ./setup_cron.sh $REDEPLOY_INTERVAL
 
-docker-compose up -d --build
+docker compose up -d --build

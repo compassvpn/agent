@@ -18,8 +18,9 @@
 15. and more...
 
 ## Requirements
-* AMD64 VPS (2 vCPU and 2GB RAM recommended)
-* Ubuntu 20.04, 22.04 or 24.04
+
+* AMD64/ARM64 VPS (2 vCPUs and 2GB RAM recommended)
+* Including but not limited to Ubuntu (20.04, 22.04 or 24.04), Debian 10-12 and Fedora
 
 ## Services
 

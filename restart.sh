@@ -16,5 +16,5 @@ else
     exit;
 fi
 
-docker-compose up -d --build
-docker-compose restart
+docker compose up -d --build
+docker compose restart
