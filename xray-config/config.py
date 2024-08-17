@@ -15,7 +15,8 @@ cf_only = os.environ.get('CF_ONLY', 'false') in ['True', 'true', 'yes']
 cf_enable = os.environ.get('CF_ENABLE', 'false') in ['True', 'true', 'yes']
 cf_api_token = os.environ.get('CF_API_TOKEN', None)
 cf_zone_id = os.environ.get('CF_ZONE_ID', None)
-xray_inbounds = os.environ.get("XRAY_INBOUNDS", "").split(",")
+xray_inbounds = os.environ.get("XRAY_INBOUNDS", "trojan-ws-tls-cdn,vless-grpc-cdn,vless-tcp-tls,vless-grpc-tls,"
+                                                "vless-tcp-reality,vless-quic").split(",")
 
 domain = None
 subdomain = None
