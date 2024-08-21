@@ -125,7 +125,7 @@ def create_cf_records():
     return name
 
 
-if os.environ.get('CF_ENABLE', '') == 'true':
+if cf_enable:
     get_domain()
     a_record = create_cf_records()
     if create_cf_records() is not None:
@@ -155,8 +155,9 @@ if os.environ.get('CF_ENABLE', '') == 'true':
             with open(f"/root/.acme.sh/{direct_subdomain}_ecc/{direct_subdomain}.key", 'r') as file:
                 cert_private = file.read()
                 cert_private = json.dumps(cert_private)[1:-1]
-
     initialized = True
+else:
+  initialized = True
 
 cf_clean_ip_domain = os.environ.get('CF_CLIENT_IP_DOMAIN', 'npmjs.com')
 
