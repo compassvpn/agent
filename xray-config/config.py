@@ -57,7 +57,6 @@ def generate_reality_keys():
 def generate_reality_sid():
     """
     Generate the reality short ID using openssl.
-    This command mimics: `openssl rand -hex 8`
     """
     try:
         result = subprocess.check_output(["openssl", "rand", "-hex", "4"], universal_newlines=True)
