@@ -44,7 +44,7 @@
         }
       },
       "sniffing": {
-        "enabled": false,
+        "enabled": true,
         "destOverride": [
           "http",
           "tls",
@@ -128,5 +128,49 @@
       "name": "vless-xhttp-quic-cdn",
       "link": "vless://$config_id@$cf_clean_ip_domain:8443?type=xhttp&mode=auto&path=%2F$nginx_path&security=tls&fp=randomized&alpn=h3&sni=$subdomain#vless-xhttp-quic-cdn",
       "cloudflare": true
+    },
+    {
+      "name": "vless-xhttp-reality",
+      "link": "vless://$config_id@$direct_subdomain:2083?type=xhttp&mode=auto&path=%2F$nginx_path&security=reality&fp=randomized&sni=$NGINX_FAKE_WEBSITE&pbk=$reality_pubkey&sid=$reality_sid#vless-xhttp-reality",
+      "cloudflare": false,
+      "inbound": {
+        "tag": "vless-xhttp-reality",
+        "listen": "0.0.0.0",
+        "port": 2083,
+        "protocol": "vless",
+        "settings": {
+          "clients": [
+            {
+              "id": "$config_id"
+            }
+          ],
+          "decryption": "none"
+        },
+        "streamSettings": {
+          "network": "xhttp",
+          "security": "reality",
+          "realitySettings": {
+            "target": "$NGINX_FAKE_WEBSITE:443",
+            "serverNames": [
+              "$NGINX_FAKE_WEBSITE"
+            ],
+            "privateKey": "$reality_pvkey",
+            "shortIds": [
+              "$reality_sid"
+            ]
+          },
+          "xhttpSettings": {
+            "path": "/$nginx_path"
+          }
+        },
+        "sniffing": {
+          "enabled": true,
+          "destOverride": [
+            "http",
+            "tls",
+            "quic"
+          ]
+        }
+      }
     }
 ]
