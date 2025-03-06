@@ -1,0 +1,51 @@
+name: Deploy Agent
+
+on:
+  workflow_dispatch:       # Allows manual triggering
+  push:
+    branches:
+      - main              # Trigger on push to main branch (or specify target branch)
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    env:
+      ENV_VAR: ${{ env.ENV_VAR }}
+      VPS_SERVERS: ${{ env.VPS_SERVERS }}
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v3
+
+      - name: Setup SSH
+        uses: webfactory/ssh-agent@v0.5.3
+        with:
+          ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
+
+      - name: Deploy to VPS Servers
+        run: |
+          # Create env_var file from ENV_VAR content
+          mkdir -p ~/.ssh
+          echo "${ENV_VAR}" > env_var
+          
+          # Loop through each server in VPS_SERVERS
+          while IFS= read -r SERVER; do
+            echo "Deploying to $SERVER"
+            # Add the server to known_hosts to avoid security prompts
+            ssh-keyscan -H "$SERVER" >> ~/.ssh/known_hosts
+            # Copy env_var file to /tmp on the server
+            scp env_var "$SERVER:/tmp/env_var"
+            # Execute commands on the server:
+            # If the 'agent' directory exists, perform git pull; otherwise, clone the repository
+            ssh "$SERVER" '
+              if [ -d agent ]; then
+                cd agent && git pull;
+              else
+                git clone https://github.com/compassvpn/agent.git;
+              fi;
+              cd agent;
+              cp /tmp/env_var ./env_file;
+              chmod +x bootstrap.sh;
+              ./bootstrap.sh;
+            ' || { echo "Failed on $SERVER"; exit 1; }
+          done <<< "${VPS_SERVERS}"
