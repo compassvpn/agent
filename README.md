@@ -121,7 +121,11 @@ The following services must be run on a VPS you intend to use as a VPN server.
       - `vless-tcp-tls-direct`
       - `vless-hu-tls-direct`
       - `vless-hu-tls-cdn`
-      - _(Default when not set: `vless-tcp-tls-direct,vless-hu-tls-direct,vless-hu-tls-cdn`)_
+      - `vless-xhttp-quic-direct`
+      - `vless-xhttp-quic-cdn`
+      - `vless-xhttp-reality`
+
+      - **If none, all will be used.**
 
 14. Set `AUTO_UPDATE` to:
       - `on` to enable automatic updates.
