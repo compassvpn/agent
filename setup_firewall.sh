@@ -1,20 +1,30 @@
 #!/bin/bash
-# This script sets up a firewall using nftables with a single configuration file.
-# It checks for firewalld and removes it if installed, then applies the nftables config.
-# It dynamically detects the SSH port from /etc/ssh/sshd_config.
+# This script sets up a firewall using nftables and generates a dynamic fail2ban configuration file.
+# It checks for firewalld and ufw, removes/disables them if installed, then applies the nftables config.
+# It dynamically detects the SSH port from /etc/ssh/sshd_config and uses it in both the nftables configuration and the fail2ban jail configuration.
 
 # Paths & Variables
 CONFIG_FILE="/etc/nftables.conf"
 SSH_CONFIG="/etc/ssh/sshd_config"
 SSH_PORT=""
+FAIL2BAN_CONFIG="./fail2ban/jail.local"  # Local file that is mounted into the fail2ban container
 
-# Function to check and remove firewalld if installed
+# Function to check and remove firewalld if installed & disable ufw
 remove_firewalld() {
+    # Check and remove firewalld
     if dpkg -l | grep -qw firewalld; then
         echo "firewalld detected. Removing firewalld..."
         sudo apt purge firewalld -yq
     else
         echo "firewalld not found."
+    fi
+
+    # Check and disable ufw
+    if dpkg -l | grep -qw ufw; then
+        echo "ufw detected. Disabling ufw..."
+        sudo ufw disable
+    else
+        echo "ufw not found."
     fi
 }
 
@@ -64,7 +74,7 @@ table inet filter {
 EOF
 }
 
-# Function to secure the config file
+# Function to secure the nftables config file
 secure_config_file() {
     sudo chown root:root "$CONFIG_FILE"
     sudo chmod 600 "$CONFIG_FILE"
@@ -80,6 +90,45 @@ apply_nftables_rules() {
     echo "Firewall rules applied successfully from $CONFIG_FILE."
 }
 
+# Function to generate dynamic fail2ban configuration file (jail.local) with SSH port detection
+generate_fail2ban_config() {
+    # Ensure the fail2ban directory exists
+    if [ ! -d "./fail2ban" ]; then
+        mkdir -p ./fail2ban
+    fi
+
+    cat << EOF > "$FAIL2BAN_CONFIG"
+[DEFAULT]
+# Ignore localhost to prevent self-bans
+ignoreip = 127.0.0.1/8 ::1
+
+[sshd]
+enabled  = true
+port     = $SSH_PORT
+filter   = sshd
+logpath  = /var/log/auth.log
+maxretry = 3
+findtime = 600    # 10 minutes
+bantime  = 86400  # 24 hours
+
+[nginx-http-auth]
+enabled  = true
+port     = 80,2053,8443
+filter   = nginx-http-auth
+logpath  = /var/log/nginx/error.log
+maxretry = 3
+
+[xray]
+enabled  = true
+port     = 443
+filter   = xray
+logpath  = /var/log/xray_access.log
+maxretry = 3
+EOF
+
+    echo "Dynamic fail2ban configuration generated at $FAIL2BAN_CONFIG."
+}
+
 # Main execution flow
 main() {
     remove_firewalld
@@ -91,6 +140,8 @@ main() {
     secure_config_file
     sleep 0.5
     apply_nftables_rules
+    sleep 0.5
+    generate_fail2ban_config
     sleep 0.5
 }
 
