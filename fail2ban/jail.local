@@ -1,0 +1,26 @@
+[DEFAULT]
+# Ignore localhost to prevent self-bans
+ignoreip = 127.0.0.1/8 ::1
+
+[sshd]
+enabled  = true
+port     = ssh
+filter   = sshd
+logpath  = /var/log/auth.log
+maxretry = 3
+findtime = 600    # 10 minutes
+bantime  = 86400  # 24 hours
+
+[nginx-http-auth]
+enabled  = true
+port     = http,https
+filter   = nginx-http-auth
+logpath  = /var/log/nginx/error.log
+maxretry = 3
+
+[xray]
+enabled  = true
+port     = 443
+filter   = xray
+logpath  = /var/log/xray_access.log
+maxretry = 3

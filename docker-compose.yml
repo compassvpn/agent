@@ -14,7 +14,7 @@ services:
       driver: "json-file"
       options:
         max-size: "1m"  # Limit log file size to 1 MB
-        max-file: "1"    # Retain up to 3 log files (rotate)
+        max-file: "1"   # Retain up to 1 log file
 
   xray:
     build:
@@ -31,7 +31,7 @@ services:
       driver: "json-file"
       options:
         max-size: "1m"  # Limit log file size to 1 MB
-        max-file: "3"    # Retain up to 3 log files (rotate)
+        max-file: "3"   # Retain up to 3 log files (rotate)
     ports:
       - "443:443/tcp"
       - "443:443/udp"
@@ -100,6 +100,16 @@ services:
       - '--collector.pressure'
       - "--web.listen-address=172.17.0.1:9100" # only allow access from host.docker.internal interface
 #      - "--web.listen-address=0.0.0.0:9100" # only allow access from host.docker.internal interface
+
+  fail2ban:
+    image: crazymax/fail2ban:latest
+    container_name: fail2ban
+    restart: always
+    network_mode: host  # Needs to monitor host logs for security
+    privileged: true    # Allows fail2ban to apply firewall rules
+    volumes:
+      - ./fail2ban/jail.local:/etc/fail2ban/jail.local:ro
+      - /var/log:/var/log:ro  # Access to system logs for detecting attacks
 
 volumes:
   acme:
