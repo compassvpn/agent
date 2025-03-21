@@ -1,26 +1,27 @@
 [DEFAULT]
 # Ignore localhost to prevent self-bans
-ignoreip = 127.0.0.1/8 ::1
+ignoreip = 127.0.0.1/8 ::1 10.0.0.0/8 172.16.0.0/12 192.168.0.0/16
 
-[sshd]
-enabled  = true
-port     = ssh
-filter   = sshd
-logpath  = /var/log/auth.log
-maxretry = 3
-findtime = 600    # 10 minutes
-bantime  = 86400  # 24 hours
+# Ban hosts for one hour:
+bantime = 86400
 
-[nginx-http-auth]
-enabled  = true
-port     = http,https
-filter   = nginx-http-auth
-logpath  = /var/log/nginx/error.log
-maxretry = 3
+# Enable incremental banning
+bantime.increment = true
 
-[xray]
-enabled  = true
-port     = 443
-filter   = xray
-logpath  = /var/log/xray_access.log
-maxretry = 3
+# Maximum ban time (1 week)
+bantime.maxtime = 604800
+
+# Override /etc/fail2ban/jail.d/00-firewalld.conf:
+banaction = iptables-multiport
+
+# Email settings
+#destemail = root@localhost
+#sender = root@localhost
+#mta = sendmail
+
+# Ports to ban in the DEFAULT section (for all jails)
+# SSH and nginx ports
+port = ssh,2222,80,2053,8443
+
+# Action (iptables only, no email)
+action = %(banaction)s[name=%(__name__)s, port="%(port)s", protocol="%(protocol)s", chain="%(chain)s"] 

@@ -166,12 +166,3 @@ def register_warp():
     else:
         return None
 
-
-def find_warp_endpoint():
-    os.system("curl -sSL https://gitlab.com/irgfw/warp-endpoint-ip-scanner/raw/main/warp-endip-scanner.sh "
-              "-o warp-endip-scanner.sh && "
-              "chmod +x warp-endip-scanner.sh && "
-              "./warp-endip-scanner.sh")
-    # choose one line randomly
-    endpoint = os.popen("tail -n +1 result.csv | head -n 10 | shuf -n 1").read().split(",")[0]
-    return endpoint
