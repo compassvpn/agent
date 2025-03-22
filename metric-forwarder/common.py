@@ -148,7 +148,7 @@ def generate_config():
                             "action": "keep"
                         }
                     ],
-                    "metrics_path": "/metrics"
+                    "metrics_path": "/"
                 }
             ]
           }
