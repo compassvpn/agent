@@ -259,6 +259,31 @@ configure_ufw() {
     echo "y" | ufw enable >/dev/null 2>&1
 }
 
+
+# Process fail2ban filter with NGINX_PATH
+process_fail2ban_filter() {
+    local filter_file="fail2ban/filter.d/nginx-bad-request.conf"
+    local nginx_path
+    
+    if [ ! -f "$filter_file" ]; then
+        echo "Error: nginx-bad-request.conf not found at $filter_file."
+        return 1
+    fi
+    
+    # Get NGINX_PATH from env_file
+    nginx_path=$(grep -oP '^NGINX_PATH=\K.*' env_file)
+    
+    if [ -z "$nginx_path" ]; then
+        echo "Warning: NGINX_PATH not found in env_file. Using default value."
+        nginx_path="default"
+    fi
+    
+    echo "Setting NGINX_PATH to $nginx_path in nginx-bad-request.conf"
+    
+    # Replace NGINX_PATH in the filter
+    sed -i "s|NGINX_PATH|$nginx_path|g" "$filter_file"
+}
+
 # Main execution
 echo
 echo "Preparing the VM..."
@@ -301,6 +326,9 @@ optimize_ufw
 sleep 0.5
 
 configure_ufw
+sleep 0.5
+
+process_fail2ban_filter
 sleep 0.5
 
 echo

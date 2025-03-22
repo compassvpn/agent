@@ -249,8 +249,9 @@ if not cf_only:
 DEBUG = os.environ.get('DEBUG', 'disable').lower() in ['enable', 'enabled', 'yes']
 xray_config = {
     "log": {
+        "access": "/var/log/xray_access.log",
         "error": "/var/log/xray_error.log",
-        "loglevel": "warn",
+        "loglevel": "warning",
         "dnsLog": True if DEBUG else False
     },
     "routing": {
