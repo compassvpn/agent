@@ -74,6 +74,24 @@ services:
     depends_on:
       - xray
 
+  user-metrics:
+    build:
+      context: .
+      dockerfile: user-metrics/Dockerfile
+    volumes:
+      - "/var/log:/var/log:ro"  # Mount log directory as read-only
+    restart: always
+    command: ["python3", "user_metrics.py", "--interval", "60", "--minutes", "5", "--log-path", "/var/log/xray_access.log"]
+    environment:
+      - TZ=UTC
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "1m"
+        max-file: "3"
+    ports:
+      - "127.0.0.1:9551:9551"  # Expose only to localhost
+
   metric-forwarder:
     build:
       context: ./metric-forwarder
