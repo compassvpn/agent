@@ -77,13 +77,13 @@ def generate_config():
                             }
                         }
                     ],
-                    "metric_relabel_configs": [
-                        {
-                            "source_labels": ["__name__"],
-                            "regex": "xray_.*",
-                            "action": "keep"
-                        }
-                    ],
+#                    "metric_relabel_configs": [
+#                        {
+#                            "source_labels": ["__name__"],
+#                            "regex": "xray_.*",
+#                            "action": "keep"
+#                        }
+#                    ],
                     "metrics_path": "/metrics"
                 },
                 {
@@ -141,14 +141,14 @@ def generate_config():
                             }
                         }
                     ],
-                    "metric_relabel_configs": [
-                        {
-                            "source_labels": ["__name__"],
-                            "regex": ".*",
-                            "action": "keep"
-                        }
-                    ],
-                    "metrics_path": "/"
+#                    "metric_relabel_configs": [
+#                        {
+#                            "source_labels": ["__name__"],
+#                            "regex": ".*",
+#                            "action": "keep"
+#                        }
+#                    ],
+                    "metrics_path": ""
                 }
             ]
           }
