@@ -75,13 +75,12 @@ services:
       - xray
 
   user-metrics:
+    context: ./user-metrics
     build:
-      context: .
-      dockerfile: user-metrics/Dockerfile
+      dockerfile: Dockerfile
     volumes:
       - "/var/log:/var/log:ro"  # Mount log directory as read-only
     restart: always
-    command: ["python3", "user_metrics.py", "--interval", "300", "--minutes", "5", "--log-path", "/var/log/xray_access.log"]
     environment:
       - TZ=UTC
     logging:
