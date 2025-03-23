@@ -21,6 +21,7 @@ MAX_CACHE_SIZE = 10000  # Maximum number of IPs to keep in memory
 # Global variables to store metrics
 unique_ip_count = 0
 total_connections = 0
+blocked_requests = 0
 collection_timestamp = 0
 last_processed_position = 0
 debug_mode = False
@@ -312,10 +313,12 @@ def parse_log_line(line):
     """Parse a log line and extract timestamp, IP, protocol, and routing information."""
     timestamp = None
     ip = None
+    is_blocked = False
 
     try:
         # Example: 2024/03/22 07:39:53 [Info] [1127] [proxy/xray/inbound01] [tcp] accepted connection from [112.48.152.206]:49228
         # or: 2024/03/22 02:41:18 Info proxy/vless: accepted a new connection from [2a09:dc43:5900:e70f:56ae:d21f:d5a:8bfa]:53518 (direct)
+        # New format: 2025/03/23 08:09:56.214805 from 5.123.36.145:42103 accepted tcp:api.ad.intl.xiaomi.com:443 [vless-tcp-tls-direct -> blocked]
         
         # Extract timestamp
         timestamp_match = re.match(r'^(\d{4}/\d{2}/\d{2} \d{2}:\d{2}:\d{2})', line)
@@ -325,22 +328,36 @@ def parse_log_line(line):
                 timestamp = datetime.datetime.strptime(timestamp_str, '%Y/%m/%d %H:%M:%S')
             except ValueError:
                 debug_print(f"Failed to parse timestamp: {timestamp_str}")
-                return None, None
+                return None, None, False
+        
+        # Check if request was blocked (new format)
+        if "-> blocked]" in line:
+            is_blocked = True
                 
-        # Extract IP address (both IPv4 and IPv6)
-        ip_match = re.search(r'from (?:\[([0-9a-fA-F:]+)\]|(\d+\.\d+\.\d+\.\d+)):', line)
+        # Extract IP address - handle both formats
+        # First try new format: from 5.123.36.145:42103
+        ip_match = re.search(r'from (?:tcp:)?(\d+\.\d+\.\d+\.\d+|\S+):', line)
         if ip_match:
-            # Group 1 is IPv6, Group 2 is IPv4
-            raw_ip = ip_match.group(1) if ip_match.group(1) else ip_match.group(2)
+            raw_ip = ip_match.group(1)
             if is_valid_ip(raw_ip):
                 ip = normalize_ip(raw_ip)
             else:
                 debug_print(f"Invalid IP address found: {raw_ip}")
+        else:
+            # Try old format: from [112.48.152.206]:49228
+            ip_match = re.search(r'from (?:\[([0-9a-fA-F:]+)\]|(\d+\.\d+\.\d+\.\d+)):', line)
+            if ip_match:
+                # Group 1 is IPv6, Group 2 is IPv4
+                raw_ip = ip_match.group(1) if ip_match.group(1) else ip_match.group(2)
+                if is_valid_ip(raw_ip):
+                    ip = normalize_ip(raw_ip)
+                else:
+                    debug_print(f"Invalid IP address found: {raw_ip}")
         
-        return timestamp, ip
+        return timestamp, ip, is_blocked
     except Exception as e:
         debug_print(f"Error parsing log line: {e}\nLine: {line}")
-        return None, None
+        return None, None, False
 
 def is_filtered_ip(ip):
     """Check if an IP should be filtered out."""
@@ -378,7 +395,7 @@ def count_unique_ips(log_file_path, minutes_ago, start_position=0):
     log_files = find_log_files(log_file_path)
     if not log_files:
         print(f"Error: No log files found matching {log_file_path}")
-        return 0, 0, 0
+        return 0, 0, 0, 0
     
     debug_print(f"Found log files: {log_files}")
     
@@ -386,6 +403,7 @@ def count_unique_ips(log_file_path, minutes_ago, start_position=0):
     total_lines = 0
     parsed_lines = 0
     filtered_ips = 0
+    blocked_count = 0
     
     # Process only the most recent log file
     current_file = log_files[0][0]
@@ -409,9 +427,11 @@ def count_unique_ips(log_file_path, minutes_ago, start_position=0):
                 
                 # Process every 100 lines to avoid memory buildup
                 if line_count % 100 == 0:
-                    timestamp, ip = parse_log_line(line)
+                    timestamp, ip, is_blocked = parse_log_line(line)
                     if timestamp and ip and timestamp >= cutoff_time:
                         parsed_lines += 1
+                        if is_blocked:
+                            blocked_count += 1
                         if not is_filtered_ip(ip):
                             tracker.add_connection(ip)
                         else:
@@ -422,9 +442,11 @@ def count_unique_ips(log_file_path, minutes_ago, start_position=0):
                 # Process buffer periodically
                 if len(line_buffer) >= 100:
                     for buffered_line in line_buffer:
-                        timestamp, ip = parse_log_line(buffered_line)
+                        timestamp, ip, is_blocked = parse_log_line(buffered_line)
                         if timestamp and ip and timestamp >= cutoff_time:
                             parsed_lines += 1
+                            if is_blocked:
+                                blocked_count += 1
                             if not is_filtered_ip(ip):
                                 tracker.add_connection(ip)
                             else:
@@ -440,9 +462,11 @@ def count_unique_ips(log_file_path, minutes_ago, start_position=0):
             
             # Process any remaining lines in buffer
             for buffered_line in line_buffer:
-                timestamp, ip = parse_log_line(buffered_line)
+                timestamp, ip, is_blocked = parse_log_line(buffered_line)
                 if timestamp and ip and timestamp >= cutoff_time:
                     parsed_lines += 1
+                    if is_blocked:
+                        blocked_count += 1
                     if not is_filtered_ip(ip):
                         tracker.add_connection(ip)
                     else:
@@ -457,20 +481,20 @@ def count_unique_ips(log_file_path, minutes_ago, start_position=0):
     
     unique_count, total_count = tracker.get_stats()
     
-    print(f"Processing summary: {unique_count} unique IPs, {total_count} total connections")
+    print(f"Processing summary: {unique_count} unique IPs, {total_count} total connections, {blocked_count} blocked requests")
     print(f"  Total lines read: {total_lines}")
     print(f"  Successfully parsed entries: {parsed_lines}")
     print(f"  Filtered IPs: {filtered_ips}")
     print(f"  Last processed position: {last_processed_position}")
     
-    return unique_count, total_count, last_processed_position
+    return unique_count, total_count, blocked_count, last_processed_position
 
 # Store command line args globally to avoid repeated parsing
 global_args = None
 
 def update_metrics(minutes_ago):
     """Update global metrics from log file."""
-    global unique_ip_count, total_connections
+    global unique_ip_count, total_connections, blocked_requests
     global collection_timestamp, last_processed_position
     global global_args
     
@@ -498,14 +522,14 @@ def update_metrics(minutes_ago):
     
     # Update metrics
     try:
-        unique_ip_count, total_connections, last_processed_position = count_unique_ips(
+        unique_ip_count, total_connections, blocked_requests, last_processed_position = count_unique_ips(
             log_file_path, minutes_ago, last_processed_position
         )
         collection_timestamp = time.time()
         
         # Print explicit values for debugging
-        print(f"Updated raw metrics values: unique_ip_count={unique_ip_count}, total_connections={total_connections}")
-        print(f"Updated metrics: {unique_ip_count} unique IPs, {total_connections} total connections")
+        print(f"Updated raw metrics values: unique_ip_count={unique_ip_count}, total_connections={total_connections}, blocked_requests={blocked_requests}")
+        print(f"Updated metrics: {unique_ip_count} unique IPs, {total_connections} total connections, {blocked_requests} blocked requests")
         print(f"Last processed position: {last_processed_position}")
     except Exception as e:
         print(f"Error updating metrics: {e}")
@@ -527,6 +551,20 @@ def generate_metrics():
     metrics.append("# HELP xray_total_connections Total number of connections in the specified time window")
     metrics.append("# TYPE xray_total_connections gauge")
     metrics.append(f"xray_total_connections{{donor=\"{donor_value}\"}} {total_connections}")
+    
+    # Add new metrics for blocked requests
+    metrics.append("# HELP xray_blocked_requests Number of blocked requests in the specified time window")
+    metrics.append("# TYPE xray_blocked_requests gauge")
+    metrics.append(f"xray_blocked_requests{{donor=\"{donor_value}\"}} {blocked_requests}")
+    
+    # Add percentage of blocked requests
+    blocked_percentage = 0
+    if total_connections > 0:
+        blocked_percentage = (blocked_requests / total_connections) * 100
+    
+    metrics.append("# HELP xray_blocked_percentage Percentage of blocked requests relative to total connections")
+    metrics.append("# TYPE xray_blocked_percentage gauge")
+    metrics.append(f"xray_blocked_percentage{{donor=\"{donor_value}\"}} {blocked_percentage:.2f}")
     
     result = "\n".join(metrics)
     print(f"Generated metrics: {result}")  # Debug print to see what's being generated
@@ -583,10 +621,11 @@ def main():
     if global_args.test:
         print(f"Testing log parsing from {global_args.log_path}...")
         try:
-            unique_count, total_count, _ = count_unique_ips(global_args.log_path, global_args.minutes)
+            unique_count, total_count, blocked_count, _ = count_unique_ips(global_args.log_path, global_args.minutes)
             print(f"\nTest results:")
             print(f"  Unique users: {unique_count}")
             print(f"  Total connections: {total_count}")
+            print(f"  Blocked requests: {blocked_count}")
             sys.exit(0)
         except Exception as e:
             print(f"Error during test: {e}")
