@@ -8,4 +8,4 @@ RUN chmod +x /root/user_metrics.py
 
 EXPOSE 9551
 
-CMD ["python3", "user_metrics.py"] 
+CMD ["python3", "user_metrics.py"]
