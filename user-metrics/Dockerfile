@@ -2,7 +2,7 @@ FROM python:3.13.2-slim
 
 WORKDIR /root
 
-COPY ./user-metrics/user_metrics.py /root/
+COPY ./user_metrics.py /root/
 
 RUN chmod +x /root/user_metrics.py
 
