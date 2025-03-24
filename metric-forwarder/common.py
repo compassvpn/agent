@@ -17,7 +17,7 @@ if not remote_write_url.endswith("/push"):
 def generate_config():
     config = {
       "server": {
-        "log_level": "debug"
+        "log_level": "info"
       },
       "metrics": {
         "wal_directory": "/tmp/grafana-agent-wal",
@@ -77,6 +77,13 @@ def generate_config():
                             }
                         }
                     ],
+#                    "metric_relabel_configs": [
+#                        {
+#                            "source_labels": ["__name__"],
+#                            "regex": "xray_.*",
+#                            "action": "keep"
+#                        }
+#                    ],
                     "metrics_path": "/metrics"
                 },
                 {
@@ -120,6 +127,28 @@ def generate_config():
                         },
                     ],
                     "metrics_path": "/scrape"
+                },
+                {
+                    "job_name": "user-metrics",
+                    "static_configs": [
+                        {
+                            "targets": [
+                                "user-metrics:9551"
+                            ],
+                            "labels": {
+                                "donor": DONOR,
+                                "instance": instance_ip
+                            }
+                        }
+                    ],
+#                    "metric_relabel_configs": [
+#                        {
+#                            "source_labels": ["__name__"],
+#                            "regex": ".*",
+#                            "action": "keep"
+#                        }
+#                    ],
+                    "metrics_path": ""
                 }
             ]
           }
