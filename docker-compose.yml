@@ -39,7 +39,9 @@ services:
     ports:
       - "443:443/tcp"
       - "443:443/udp"
-
+      - "2083:2083/tcp"
+      - "2083:2083/udp"
+      
   nginx:
     build:
       context: ./nginx

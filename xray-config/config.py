@@ -8,6 +8,8 @@ import requests
 
 from utils import get_identifier, get_public_ip, register_warp
 
+import subprocess
+
 config_id = get_identifier()
 
 config_uuid = os.popen(f"xray uuid -i {config_id}").read().replace("\n", "").strip()
@@ -16,8 +18,9 @@ cf_only = os.environ.get('CF_ONLY', 'false') in ['True', 'true', 'yes']
 cf_enable = os.environ.get('CF_ENABLE', 'false') in ['True', 'true', 'yes']
 cf_api_token = os.environ.get('CF_API_TOKEN', None)
 cf_zone_id = os.environ.get('CF_ZONE_ID', None)
+NGINX_FAKE_WEBSITE = os.environ.get('NGINX_FAKE_WEBSITE', None)
 nginx_path = os.environ.get('NGINX_PATH', None)
-xray_inbounds = os.environ.get("XRAY_INBOUNDS", "vless-tcp-tls-direct,vless-hu-tls-direct,vless-hu-tls-cdn,vless-xhttp-quic-direct,vless-xhttp-quic-cdn").split(",")
+xray_inbounds = os.environ.get("XRAY_INBOUNDS", "vless-tcp-tls-direct,vless-hu-tls-direct,vless-hu-tls-cdn,vless-xhttp-quic-direct,vless-xhttp-quic-cdn,vless-xhttp-reality").split(",")
 
 domain = None
 subdomain = None
@@ -28,6 +31,42 @@ initialized = False
 
 server_ip = get_public_ip()
 
+def generate_reality_keys():
+    """
+    Generate the reality keys using the xray x25519 command.
+    Expected output format:
+      Private key: <private_key_value>
+      Public key: <public_key_value>
+    """
+    try:
+        result = subprocess.check_output(["xray", "x25519"], universal_newlines=True)
+        # Split output into lines and parse for keys.
+        private_key = None
+        public_key = None
+        for line in result.strip().splitlines():
+            if line.startswith("Private key:"):
+                private_key = line.split("Private key:")[1].strip()
+            elif line.startswith("Public key:"):
+                public_key = line.split("Public key:")[1].strip()
+        if not private_key or not public_key:
+            raise ValueError("Could not parse reality keys from xray x25519 output.")
+        return private_key, public_key
+    except subprocess.CalledProcessError as e:
+        raise RuntimeError(f"Failed to generate reality keys: {e}")
+
+def generate_reality_sid():
+    """
+    Generate the reality short ID using openssl.
+    """
+    try:
+        result = subprocess.check_output(["openssl", "rand", "-hex", "4"], universal_newlines=True)
+        return result.strip()
+    except subprocess.CalledProcessError as e:
+        raise RuntimeError(f"Failed to generate reality SID: {e}")
+
+# Generate reality keys and SID using subprocess
+reality_pvkey, reality_pubkey = generate_reality_keys()
+reality_sid = generate_reality_sid()
 
 def get_domain():
     global domain
@@ -167,12 +206,17 @@ with open("inbounds.json") as f:
     all_inbounds = json.loads(inbound_template.substitute({"config_id": config_id,
                                                            "config_uuid": config_uuid,
                                                            "cf_clean_ip_domain": cf_clean_ip_domain,
+                                                           "NGINX_FAKE_WEBSITE": NGINX_FAKE_WEBSITE,
                                                            "nginx_path": nginx_path,
                                                            "server_ip": server_ip,
                                                            "direct_subdomain": direct_subdomain,
                                                            "subdomain": subdomain,
                                                            "cert_public": cert_public,
-                                                           "cert_private": cert_private}))
+                                                           "cert_private": cert_private,
+                                                           "reality_pubkey": reality_pubkey,
+                                                           "reality_pvkey": reality_pvkey,
+                                                           "reality_sid": reality_sid
+                                                           }))
     configured_inbounds = [inbound for inbound in all_inbounds if inbound.get("name") in xray_inbounds]
     for inbound in configured_inbounds:
         if isinstance(inbound.get("link"), dict):
@@ -311,7 +355,8 @@ if os.environ.get('XRAY_OUTBOUND') == 'warp':
             "vless-hu-tls-direct",
             "vless-hu-tls-cdn",
             "vless-xhttp-quic-direct",
-            "vless-xhttp-quic-cdn"
+            "vless-xhttp-quic-cdn",
+            "vless-xhttp-reality"
         ],
         "balancerTag": "balancer1"
     })

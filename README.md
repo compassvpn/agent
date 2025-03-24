@@ -117,11 +117,15 @@ The following services must be run on a VPS you intend to use as a VPN server.
 
 13. Set `XRAY_INBOUNDS` to your desired inbound configurations, as defined in inbounds.json.
       
-      Supported Inbounds:
+      **Supported Inbounds:**
       - `vless-tcp-tls-direct`
       - `vless-hu-tls-direct`
       - `vless-hu-tls-cdn`
-      - _(Default when not set: `vless-tcp-tls-direct,vless-hu-tls-direct,vless-hu-tls-cdn`)_
+      - `vless-xhttp-quic-direct`
+      - `vless-xhttp-quic-cdn`
+      - `vless-xhttp-reality`
+
+      - **If none is set or it's empty, all will be used.**
 
 14. Set `AUTO_UPDATE` to:
       - `on` to enable automatic updates.

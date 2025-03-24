@@ -2,6 +2,8 @@
 
 rm /run/*.pid
 
+sleep 10
+
 if [ $XRAY_OUTBOUND = "warp" ]; then
   # xray-config upstream URL
   UPSTREAM_URL="http://xray-config:5000/warps"
