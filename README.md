@@ -175,17 +175,17 @@ The following services must be run on a VPS you intend to use as a VPN server.
 ./restart.sh
 ```
 
-### Update:
+### Check & Update:
 ```bash
-./update.sh && sleep 1 && ./restart.sh
-```
-
-### View Configuration Links:
-```bash
-./show_configs.sh
+./check_update.sh
 ```
 
 ### Show Logs:
 ```bash
 ./logs.sh
+```
+
+### View Configuration Links:
+```bash
+./show_configs.sh
 ```
