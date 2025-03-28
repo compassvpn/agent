@@ -21,16 +21,15 @@
 15. Ability to configure Custom DNS to block junk traffic at egress, effectively reducing bandwidth consumption.
 16. Enhanced security with fail2ban to protect against brute force attacks.
 17. Automatic firewall configuration through UFW to secure the server.
-18. Support for XHTTP (TLS/QUIC) inbounds for improved performance and compatibility.
-19. User metrics for tracking approximate active unique users across all inbounds and monitoring blocked requests due to junk traffic (DNS and Custom CompassVPN routing rules), effectively optimizing bandwidth usage.
-20. WireGuard integration for WARP outbound connections with automatic fallback.
-21. Intelligent process monitoring for all services using Monit.
+18. User metrics for tracking approximate active unique users across all inbounds and monitoring blocked requests due to junk traffic (DNS and Custom CompassVPN routing rules), effectively optimizing bandwidth usage.
+19. WireGuard integration for WARP outbound connections with automatic fallback.
+20. Intelligent process monitoring for all services using Monit.
 
 
 ## Requirements
 
 - **VPS Architecture**: **AMD64** or **ARM64** _(recommended: 2 vCPUs and 2GB RAM)_.
-- **Supported OS**: **Ubuntu (20+)**, **Debian (10+)**, **Fedora (37+)**.
+- **Supported OS**: **Ubuntu (20+)**, **Debian (10+)**.
 - `git` and `curl` packages installed on the server:
 ```bash
 sudo apt update -q && sudo apt install -yq git curl
@@ -87,7 +86,7 @@ The following services must be run on a VPS you intend to use as a VPN server.
 ## Configure `env_file`
 
 1. Copy the example file to `env_file`, the program's required configuration file:
-      ```
+      ```bash
       cp env_file.example env_file
       ```
 
@@ -135,7 +134,7 @@ The following services must be run on a VPS you intend to use as a VPN server.
       - `vless-hu-tls-cdn`
       - `vless-xhttp-quic-direct`
       - `vless-xhttp-quic-cdn`
-      - _(Default when not set: `vless-tcp-tls-direct,vless-hu-tls-direct,vless-hu-tls-cdn`)_
+      - _(Default when not set: all inbounds)_
 
 14. Set `AUTO_UPDATE` to:
       - `on` to enable automatic updates.
@@ -161,7 +160,7 @@ The following services must be run on a VPS you intend to use as a VPN server.
 
 17. Set `DEBUG` to:
       - `disable`. _(default)_
-      - `enable`: Show Xray-core debug and DNS logs.
+      - `enable`: Show Xray debug & DNS logs.
 
 
 ## Commands
@@ -181,12 +180,12 @@ The following services must be run on a VPS you intend to use as a VPN server.
 ./update.sh && sleep 1 && ./restart.sh
 ```
 
-### Show Logs:
-```bash
-./logs.sh
-```
-
 ### View Configuration Links:
 ```bash
 ./show_configs.sh
+```
+
+### Show Logs:
+```bash
+./logs.sh
 ```
