@@ -19,6 +19,12 @@
 13. Configuration self-testing using Xray-Knife.
 14. Utilize the NGINX web server to enhance resource efficiency and strengthen security.
 15. Ability to configure Custom DNS to block junk traffic at egress, effectively reducing bandwidth consumption.
+16. Enhanced security with fail2ban to protect against brute force attacks.
+17. Automatic firewall configuration through UFW to secure the server.
+18. Support for XHTTP (TLS/QUIC) inbounds for improved performance and compatibility.
+19. User metrics for tracking approximate active unique users across all inbounds and monitoring blocked requests due to junk traffic (DNS and Custom CompassVPN routing rules), effectively optimizing bandwidth usage.
+20. WireGuard integration for WARP outbound connections with automatic fallback.
+21. Intelligent process monitoring for all services using Monit.
 
 
 ## Requirements
@@ -50,6 +56,12 @@ NGINX webserver to manage Xray inbounds and fallbacks, enhancing both performanc
 
 ### `metric-forwarder`
 Reads metrics from `xray-config`, `node-exporter`, and `v2ray-exporter` services and pushes them to a remote manager `Pushgateway` service or `Grafana Cloud Prometheus` endpoint.
+
+### `fail2ban`
+Protects the server against brute force attacks by monitoring logs and automatically blocking suspicious IPs.
+
+### `user-metrics`
+Tracks approximate active unique users across all configured inbounds and monitors blocked requests due to junk traffic, providing insights into bandwidth optimization.
 
 ## Setup Manager
 Please follow [this tutorial](https://github.com/compassvpn/manager) to create a manager. You can choose between the following options:
@@ -121,6 +133,8 @@ The following services must be run on a VPS you intend to use as a VPN server.
       - `vless-tcp-tls-direct`
       - `vless-hu-tls-direct`
       - `vless-hu-tls-cdn`
+      - `vless-xhttp-quic-direct`
+      - `vless-xhttp-quic-cdn`
       - _(Default when not set: `vless-tcp-tls-direct,vless-hu-tls-direct,vless-hu-tls-cdn`)_
 
 14. Set `AUTO_UPDATE` to:
@@ -170,4 +184,9 @@ The following services must be run on a VPS you intend to use as a VPN server.
 ### Show Logs:
 ```bash
 ./logs.sh
+```
+
+### View Configuration Links:
+```bash
+./show_configs.sh
 ```
