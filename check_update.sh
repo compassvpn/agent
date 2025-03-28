@@ -10,10 +10,12 @@ LOCAL=$(git rev-parse @)
 REMOTE=$(git rev-parse @{u})
 
 if [ "$LOCAL" != "$REMOTE" ]; then
-    echo "There are new changes. run update.sh"
+    echo "There are new changes. Updating..."
     bash ./update.sh
-    echo "update done! - build nad restart services..."
+    echo "Update done! - Restarting..."
+    sleep 1
     ./restart.sh
+    echo "Restart done! - Please wait at least 5 minutes for all services to run."
 else
     echo "No new changes."
 fi
