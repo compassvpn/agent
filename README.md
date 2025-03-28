@@ -90,7 +90,7 @@ The following services must be run on a VPS you intend to use as a VPN server.
       cp env_file.example env_file
       ```
 
-2. Set `METRIC_PUSH_METHOD` to either `pushgateway` or `grafana_cloud`, based on your chosen Manager option.
+2. Set `METRIC_PUSH_METHOD` to either `pushgateway` or `grafana_cloud`, based on your chosen Manager option. (recommended: `grafana_cloud` for simplicity.)
 
 3. if `METRIC_PUSH_METHOD=grafana_agent` _(set during the manager setup: [Option 1](https://github.com/compassvpn/manager?tab=readme-ov-file#option-1-use-garafana-cloud))_
       - set `GRAFANA_AGENT_REMOTE_WRITE_URL` _(Grafana remote URL)_
