@@ -75,8 +75,8 @@ services:
       - xray
 
   user-metrics:
-    context: ./user-metrics
     build:
+      context: ./user-metrics
       dockerfile: Dockerfile
     volumes:
       - "/var/log:/var/log:ro"  # Mount log directory as read-only
