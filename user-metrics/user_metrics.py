@@ -11,12 +11,13 @@ from http.server import HTTPServer, BaseHTTPRequestHandler
 import threading
 import gzip
 import os
+import subprocess
 
 # Default values
 DEFAULT_PORT = 9551
 DEFAULT_INTERVAL = 300  # seconds
 DEFAULT_MINUTES = 2
-MAX_CACHE_SIZE = 10000  # Maximum number of IPs to keep in memory
+MAX_CACHE_SIZE = 5000  # Maximum number of IPs to keep in memory
 
 # Global variables to store metrics
 unique_ip_count = 0
@@ -42,6 +43,12 @@ PRIVATE_NETWORKS = [
     'fe80::/10'  # IPv6 link-local addresses
 ]
 
+# Precompile regular expressions for better performance
+TIMESTAMP_REGEX = re.compile(r'^(\d{4}/\d{2}/\d{2} \d{2}:\d{2}:\d{2})')
+NEW_FORMAT_IP_REGEX = re.compile(r'from (?:tcp:)?(\d+\.\d+\.\d+\.\d+|\S+):')
+OLD_FORMAT_IP_REGEX = re.compile(r'from (?:\[([0-9a-fA-F:]+)\]|(\d+\.\d+\.\d+\.\d+)):')
+
+# Create private_networks as IP network objects once
 private_networks = [ipaddress.ip_network(net) for net in PRIVATE_NETWORKS]
 
 # Common DNS server IPs to filter out
@@ -182,12 +189,21 @@ COMMON_DNS = {
     '2610:a1:1018::3',
 }
 
+# Pre-combine all filtered IPs for faster lookup
+FILTERED_IPS = SYSTEM_IPS | COMMON_DNS
+
+# Cache for IP address normalization and validation
+IP_CACHE = {}
+# Cache for is_filtered_ip results
+FILTER_CACHE = {}
+
 # Connection tracking with TTL
 class ConnectionTracker:
     def __init__(self, ttl_minutes, max_entries=MAX_CACHE_SIZE):
         self.connections = {}  # IP -> (count, last_seen)
         self.ttl = ttl_minutes * 60  # Convert to seconds
         self.max_entries = max_entries
+        self.last_cleanup = time.time()
         
     def add_connection(self, ip):
         # Enforce size limit
@@ -205,22 +221,22 @@ class ConnectionTracker:
     
     def cleanup(self):
         # Only clean if more than 1000 entries to avoid frequent cleanups
-        if len(self.connections) < 1000:
+        # And only if it's been at least 30 seconds since last cleanup
+        current_time = time.time()
+        if len(self.connections) < 1000 or current_time - self.last_cleanup < 30:
             return
             
-        current_time = time.time()
         # More efficient cleanup without building a list
         for ip in list(self.connections.keys()):
             _, last_seen = self.connections[ip]
             if current_time - last_seen > self.ttl:
                 del self.connections[ip]
+        
+        self.last_cleanup = current_time
     
     def get_stats(self):
         self.cleanup()
         return len(self.connections), sum(count for count, _ in self.connections.values())
-
-# Don't pre-compute all IPs in private networks
-FILTERED_IPS = SYSTEM_IPS | COMMON_DNS
 
 def parse_arguments():
     parser = argparse.ArgumentParser(description='Serve Prometheus metrics for xray_access.log')
@@ -244,33 +260,47 @@ def debug_print(message):
         print(f"[DEBUG] {message}")
 
 def normalize_ip(ip):
-    """Normalize IP address to standard format."""
+    """Normalize IP address to standard format with caching."""
+    if ip in IP_CACHE:
+        return IP_CACHE[ip]
+        
     try:
         # Handle IPv6 addresses
         if ':' in ip:
             # Remove brackets if present
             ip = ip.strip('[]')
             # Normalize IPv6 address
-            return str(ipaddress.IPv6Address(ip))
+            normalized = str(ipaddress.IPv6Address(ip))
+            IP_CACHE[ip] = normalized
+            return normalized
         # Handle IPv4 addresses
-        return str(ipaddress.IPv4Address(ip))
+        normalized = str(ipaddress.IPv4Address(ip))
+        IP_CACHE[ip] = normalized
+        return normalized
     except ValueError:
+        IP_CACHE[ip] = None
         return None
 
 def is_valid_ip(ip):
-    """Check if an IP address is valid (IPv4 or IPv6)."""
+    """Check if an IP address is valid (IPv4 or IPv6) with caching."""
+    if ip in IP_CACHE:
+        return IP_CACHE[ip] is not None
+        
     try:
         # Remove brackets if present
         ip = ip.strip('[]')
         # Try IPv6 first
         ipaddress.IPv6Address(ip)
+        IP_CACHE[ip] = ip
         return True
     except ValueError:
         try:
             # Try IPv4
             ipaddress.IPv4Address(ip)
+            IP_CACHE[ip] = ip
             return True
         except ValueError:
+            IP_CACHE[ip] = None
             return False
 
 def find_log_files(base_log_path):
@@ -316,12 +346,12 @@ def parse_log_line(line):
     is_blocked = False
 
     try:
-        # Example: 2024/03/22 07:39:53 [Info] [1127] [proxy/xray/inbound01] [tcp] accepted connection from [112.48.152.206]:49228
-        # or: 2024/03/22 02:41:18 Info proxy/vless: accepted a new connection from [2a09:dc43:5900:e70f:56ae:d21f:d5a:8bfa]:53518 (direct)
-        # New format: 2025/03/23 08:09:56.214805 from 5.123.36.145:42103 accepted tcp:api.ad.intl.xiaomi.com:443 [vless-tcp-tls-direct -> blocked]
+        # Check if request was blocked (new format) - this is a fast check
+        if "-> blocked]" in line:
+            is_blocked = True
         
         # Extract timestamp
-        timestamp_match = re.match(r'^(\d{4}/\d{2}/\d{2} \d{2}:\d{2}:\d{2})', line)
+        timestamp_match = TIMESTAMP_REGEX.match(line)
         if timestamp_match:
             timestamp_str = timestamp_match.group(1)
             try:
@@ -329,14 +359,10 @@ def parse_log_line(line):
             except ValueError:
                 debug_print(f"Failed to parse timestamp: {timestamp_str}")
                 return None, None, False
-        
-        # Check if request was blocked (new format)
-        if "-> blocked]" in line:
-            is_blocked = True
                 
         # Extract IP address - handle both formats
         # First try new format: from 5.123.36.145:42103
-        ip_match = re.search(r'from (?:tcp:)?(\d+\.\d+\.\d+\.\d+|\S+):', line)
+        ip_match = NEW_FORMAT_IP_REGEX.search(line)
         if ip_match:
             raw_ip = ip_match.group(1)
             if is_valid_ip(raw_ip):
@@ -345,7 +371,7 @@ def parse_log_line(line):
                 debug_print(f"Invalid IP address found: {raw_ip}")
         else:
             # Try old format: from [112.48.152.206]:49228
-            ip_match = re.search(r'from (?:\[([0-9a-fA-F:]+)\]|(\d+\.\d+\.\d+\.\d+)):', line)
+            ip_match = OLD_FORMAT_IP_REGEX.search(line)
             if ip_match:
                 # Group 1 is IPv6, Group 2 is IPv4
                 raw_ip = ip_match.group(1) if ip_match.group(1) else ip_match.group(2)
@@ -360,10 +386,14 @@ def parse_log_line(line):
         return None, None, False
 
 def is_filtered_ip(ip):
-    """Check if an IP should be filtered out."""
+    """Check if an IP should be filtered out with caching."""
+    if ip in FILTER_CACHE:
+        return FILTER_CACHE[ip]
+        
     try:
         # First check direct matches which is faster
         if ip in FILTERED_IPS:
+            FILTER_CACHE[ip] = True
             return True
             
         # Then check network membership for private networks
@@ -372,13 +402,17 @@ def is_filtered_ip(ip):
             # Check if in private networks
             for network in private_networks:
                 if ip_obj in network:
+                    FILTER_CACHE[ip] = True
                     return True
         except ValueError:
+            FILTER_CACHE[ip] = True
             return True  # Invalid IP format
             
+        FILTER_CACHE[ip] = False
         return False
     except Exception as e:
         debug_print(f"Error filtering IP {ip}: {e}")
+        FILTER_CACHE[ip] = True
         return True  # Filter out on error to be safe
 
 def count_unique_ips(log_file_path, minutes_ago, start_position=0):
@@ -399,70 +433,44 @@ def count_unique_ips(log_file_path, minutes_ago, start_position=0):
     
     debug_print(f"Found log files: {log_files}")
     
-    current_position = start_position
-    total_lines = 0
-    parsed_lines = 0
-    filtered_ips = 0
-    blocked_count = 0
-    
     # Process only the most recent log file
     current_file = log_files[0][0]
     try:
-        print(f"Processing current log file from position {current_position}: {current_file}")
-        with open(current_file, 'r', encoding='utf-8', errors='ignore') as f:
-            if current_position > 0:
-                f.seek(current_position)
-                debug_print(f"Seeking to position {current_position}")
+        # Calculate timestamp for the cutoff time
+        # Create timestamp in same format as log files, like 2024/03/22 07:39:53
+        cutoff_time_str = cutoff_time.strftime('%Y/%m/%d %H:%M:%S')
+        
+        # Use grep to get only lines after the cutoff time - more efficient than tail
+        # For 2 minutes of logs, this is likely to be more efficient
+        grep_cmd = f"grep -a -A 100000 '{cutoff_time_str}' {current_file} | head -n 5000"
+        process = subprocess.Popen(grep_cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        output, error = process.communicate()
+        
+        if error and not output:
+            debug_print(f"Error or no output from grep command: {error}")
+            # Fall back to tail if grep fails
+            tail_cmd = f"tail -n 5000 {current_file}"
+            process = subprocess.Popen(tail_cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            output, error = process.communicate()
             
-            # Get current file size
-            f.seek(0, 2)
-            current_file_size = f.tell()
-            f.seek(current_position)
+            if error:
+                print(f"Error running tail command: {error}")
+                return 0, 0, 0, 0
             
-            # Process lines directly without buffering all 1000 in memory
-            line_buffer = []
-            line_count = 0
-            for line in f:
-                line_count += 1
-                
-                # Process every 100 lines to avoid memory buildup
-                if line_count % 100 == 0:
-                    timestamp, ip, is_blocked = parse_log_line(line)
-                    if timestamp and ip and timestamp >= cutoff_time:
-                        parsed_lines += 1
-                        if is_blocked:
-                            blocked_count += 1
-                        if not is_filtered_ip(ip):
-                            tracker.add_connection(ip)
-                        else:
-                            filtered_ips += 1
-                else:
-                    line_buffer.append(line)
-                    
-                # Process buffer periodically
-                if len(line_buffer) >= 100:
-                    for buffered_line in line_buffer:
-                        timestamp, ip, is_blocked = parse_log_line(buffered_line)
-                        if timestamp and ip and timestamp >= cutoff_time:
-                            parsed_lines += 1
-                            if is_blocked:
-                                blocked_count += 1
-                            if not is_filtered_ip(ip):
-                                tracker.add_connection(ip)
-                            else:
-                                filtered_ips += 1
-                    line_buffer = []
-                    
-                # Update total processed
-                total_lines += 1
-                
-                # Periodic cleanup to keep memory usage in check
-                if total_lines % 10000 == 0:
-                    tracker.cleanup()
+        parsed_lines = 0
+        filtered_ips = 0
+        blocked_count = 0
+        
+        # Process output in bulk
+        lines = output.decode('utf-8', errors='ignore').splitlines()
+        # Reduce memory usage by processing in chunks
+        chunk_size = 1000
+        
+        for i in range(0, len(lines), chunk_size):
+            chunk = lines[i:i+chunk_size]
             
-            # Process any remaining lines in buffer
-            for buffered_line in line_buffer:
-                timestamp, ip, is_blocked = parse_log_line(buffered_line)
+            for line in chunk:
+                timestamp, ip, is_blocked = parse_log_line(line)
                 if timestamp and ip and timestamp >= cutoff_time:
                     parsed_lines += 1
                     if is_blocked:
@@ -471,23 +479,31 @@ def count_unique_ips(log_file_path, minutes_ago, start_position=0):
                         tracker.add_connection(ip)
                     else:
                         filtered_ips += 1
+        
+        # Get current file size for position tracking
+        current_file_size = os.path.getsize(current_file)
+        last_processed_position = current_file_size
+        
+        # Get connection statistics
+        unique_count, total_count = tracker.get_stats()
+        
+        print(f"Processing summary: {unique_count} unique IPs, {total_count} total connections, {blocked_count} blocked requests")
+        print(f"  Successfully parsed entries: {parsed_lines}")
+        print(f"  Filtered IPs: {filtered_ips}")
+        print(f"  Last processed position: {last_processed_position}")
+        
+        # Clear caches periodically to avoid memory growth
+        if len(IP_CACHE) > 10000:
+            IP_CACHE.clear()
+        if len(FILTER_CACHE) > 10000:
+            FILTER_CACHE.clear()
             
-            last_processed_position = current_file_size
-            print(f"Updated last_processed_position to {last_processed_position}")
+        return unique_count, total_count, blocked_count, last_processed_position
             
     except Exception as e:
-        print(f"Error reading current log file: {e}")
+        print(f"Error processing log file: {e}")
         last_processed_position = 0
-    
-    unique_count, total_count = tracker.get_stats()
-    
-    print(f"Processing summary: {unique_count} unique IPs, {total_count} total connections, {blocked_count} blocked requests")
-    print(f"  Total lines read: {total_lines}")
-    print(f"  Successfully parsed entries: {parsed_lines}")
-    print(f"  Filtered IPs: {filtered_ips}")
-    print(f"  Last processed position: {last_processed_position}")
-    
-    return unique_count, total_count, blocked_count, last_processed_position
+        return 0, 0, 0, 0
 
 # Store command line args globally to avoid repeated parsing
 global_args = None
