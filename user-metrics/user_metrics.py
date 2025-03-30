@@ -15,7 +15,7 @@ import os
 # Default values
 DEFAULT_PORT = 9551
 DEFAULT_INTERVAL = 300  # seconds
-DEFAULT_MINUTES = 10
+DEFAULT_MINUTES = 2
 MAX_CACHE_SIZE = 10000  # Maximum number of IPs to keep in memory
 
 # Global variables to store metrics
