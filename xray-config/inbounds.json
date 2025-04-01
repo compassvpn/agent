@@ -88,12 +88,40 @@
   },
   {
     "name": "vless-hu-tls-cdn",
-    "link": "vless://$config_id@$cf_clean_ip_domain:2053?type=httpupgrade&host=$subdomain&path=%2F$nginx_path&security=tls&fp=randomized&alpn=h2%2Chttp%2F1.1&sni=$subdomain#vless-hu-tls-cdn",
-    "cloudflare": true
+    "link": "vless://$config_id@$cf_clean_ip_domain:2053?type=httpupgrade&host=$subdomain&path=%2F$nginx_path%2Fcdn&security=tls&fp=randomized&alpn=h2%2Chttp%2F1.1&sni=$subdomain#vless-hu-tls-cdn",
+    "cloudflare": true,
+    "inbound": {
+      "tag": "vless-hu-tls-cdn",
+      "listen": "0.0.0.0",
+      "port": 8022,
+      "protocol": "vless",
+      "settings": {
+        "clients": [
+          {
+            "id": "$config_id"
+          }
+        ],
+        "decryption": "none"
+      },
+      "streamSettings": {
+        "network": "httpupgrade",
+        "httpupgradeSettings": {
+          "path": "/$nginx_path/cdn"
+        }
+      },
+      "sniffing": {
+        "enabled": true,
+        "destOverride": [
+          "http",
+          "tls",
+          "quic"
+        ]
+      }
+    }
   },
   {
       "name": "vless-xhttp-quic-direct",
-      "link": "vless://$config_id@$direct_subdomain:8443?type=xhttp&mode=auto&path=%2F$nginx_path&security=tls&fp=randomized&alpn=h3&sni=$direct_subdomain#vless-xhttp-quic-direct",
+      "link": "vless://$config_id@$direct_subdomain:8443?type=xhttp&mode=auto&path=%2F$nginx_path&security=tls&fp=randomized&alpn=h3%2Ch2&sni=$direct_subdomain#vless-xhttp-quic-direct",
       "cloudflare": false,
       "inbound": {
         "tag": "vless-xhttp-quic-direct",
@@ -126,7 +154,35 @@
     },
     {
       "name": "vless-xhttp-quic-cdn",
-      "link": "vless://$config_id@$cf_clean_ip_domain:8443?type=xhttp&mode=auto&path=%2F$nginx_path&security=tls&fp=randomized&alpn=h3&sni=$subdomain#vless-xhttp-quic-cdn",
-      "cloudflare": true
+      "link": "vless://$config_id@$cf_clean_ip_domain:8443?type=xhttp&mode=auto&path=%2F$nginx_path%2Fcdn&security=tls&fp=randomized&alpn=h3%2Ch2&sni=$subdomain#vless-xhttp-quic-cdn",
+      "cloudflare": true,
+      "inbound": {
+        "tag": "vless-xhttp-quic-cdn",
+        "listen": "0.0.0.0",
+        "port": 8033,
+        "protocol": "vless",
+        "settings": {
+          "clients": [
+            {
+              "id": "$config_id"
+            }
+          ],
+          "decryption": "none"
+        },
+        "streamSettings": {
+          "network": "xhttp",
+          "xhttpSettings": {
+            "path": "/$nginx_path/cdn"
+          }
+        },
+        "sniffing": {
+          "enabled": true,
+          "destOverride": [
+            "http",
+            "tls",
+            "quic"
+          ]
+        }
+      }
     }
 ]
