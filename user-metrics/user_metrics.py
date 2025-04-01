@@ -11,9 +11,9 @@ from http.server import HTTPServer, BaseHTTPRequestHandler
 import threading
 import gzip
 import os
-import subprocess
 
 # Default values
+DEFAULT_LOG_PATH = '/var/log/xray_access.log'
 DEFAULT_PORT = 9551
 DEFAULT_INTERVAL = 300  # seconds
 DEFAULT_MINUTES = 2
@@ -25,6 +25,7 @@ total_connections = 0
 blocked_requests = 0
 collection_timestamp = 0
 last_processed_position = 0
+last_processed_inode = 0 # Added inode tracking
 debug_mode = False
 
 # Known system IPs and networks to filter out
@@ -42,14 +43,6 @@ PRIVATE_NETWORKS = [
     'fc00::/7',  # IPv6 unique local addresses
     'fe80::/10'  # IPv6 link-local addresses
 ]
-
-# Precompile regular expressions for better performance
-TIMESTAMP_REGEX = re.compile(r'^(\d{4}/\d{2}/\d{2} \d{2}:\d{2}:\d{2})')
-NEW_FORMAT_IP_REGEX = re.compile(r'from (?:tcp:)?(\d+\.\d+\.\d+\.\d+|\S+):')
-OLD_FORMAT_IP_REGEX = re.compile(r'from (?:\[([0-9a-fA-F:]+)\]|(\d+\.\d+\.\d+\.\d+)):')
-
-# Create private_networks as IP network objects once
-private_networks = [ipaddress.ip_network(net) for net in PRIVATE_NETWORKS]
 
 # Common DNS server IPs to filter out
 COMMON_DNS = {
@@ -121,23 +114,23 @@ COMMON_DNS = {
     '76.76.2.0',
     '76.76.10.0',
     '2606:1a40::',
-    '2606:1a40:1::',   
+    '2606:1a40:1::',
     '76.76.2.1',
     '76.76.10.1',
     '2606:1a40::1',
-    '2606:1a40:1::1',   
+    '2606:1a40:1::1',
     '76.76.2.3',
     '76.76.10.3',
     '2606:1a40::3',
-    '2606:1a40:1::3',  
+    '2606:1a40:1::3',
     '76.76.2.4',
     '76.76.10.4',
     '2606:1a40::4',
-    '2606:1a40:1::4',  
+    '2606:1a40:1::4',
     '76.76.2.5',
     '76.76.10.5',
     '2606:1a40::5',
-    '2606:1a40:1::5',  
+    '2606:1a40:1::5',
     
     #AliDNS
     '223.5.5.5',
@@ -166,7 +159,7 @@ COMMON_DNS = {
     '2620:119:35::35',
     '2620:119:53::53',
     '2620:0:ccc::2',
-    '2620:0:ccd::2',    
+    '2620:0:ccd::2',
     
     # Yandex DNS
     '77.88.8.8',
@@ -188,6 +181,14 @@ COMMON_DNS = {
     '2620:74:1b::1:2',
     '2610:a1:1018::3',
 }
+
+# Precompile regular expressions for better performance
+TIMESTAMP_REGEX = re.compile(r'^(\d{4}/\d{2}/\d{2} \d{2}:\d{2}:\d{2})')
+NEW_FORMAT_IP_REGEX = re.compile(r'from (?:tcp:)?(\d+\.\d+\.\d+\.\d+|\S+):')
+OLD_FORMAT_IP_REGEX = re.compile(r'from (?:\[([0-9a-fA-F:]+)\]|(\d+\.\d+\.\d+\.\d+)):')
+
+# Create private_networks as IP network objects once
+private_networks = [ipaddress.ip_network(net) for net in PRIVATE_NETWORKS]
 
 # Pre-combine all filtered IPs for faster lookup
 FILTERED_IPS = SYSTEM_IPS | COMMON_DNS
@@ -246,8 +247,8 @@ def parse_arguments():
                       help=f'Collection interval in seconds (default: {DEFAULT_INTERVAL})')
     parser.add_argument('--minutes', '-m', type=int, default=DEFAULT_MINUTES,
                       help=f'Number of minutes to look back (default: {DEFAULT_MINUTES})')
-    parser.add_argument('--log-path', '-l', default='/var/log/xray_access.log',
-                      help='Path to the xray_access.log file')
+    parser.add_argument('--log-path', '-l', default=DEFAULT_LOG_PATH,
+                      help=f'Path to the xray_access.log file (default: {DEFAULT_LOG_PATH})')
     parser.add_argument('--debug', '-d', action='store_true',
                       help='Enable debug mode for troubleshooting')
     parser.add_argument('--test', '-t', action='store_true',
@@ -415,61 +416,50 @@ def is_filtered_ip(ip):
         FILTER_CACHE[ip] = True
         return True  # Filter out on error to be safe
 
-def count_unique_ips(log_file_path, minutes_ago, start_position=0):
-    """Count unique IP addresses in log file within the specified time window."""
-    global last_processed_position
-    
-    # Calculate the cutoff time
+def count_unique_ips(log_file_path, minutes_ago):
+    """Count unique IP addresses in log file within the specified time window using incremental processing."""
+    global last_processed_position, last_processed_inode
+
     cutoff_time = datetime.datetime.now() - datetime.timedelta(minutes=minutes_ago)
     debug_print(f"Cutoff time: {cutoff_time}")
-    
-    # Use connection tracker with TTL
+
     tracker = ConnectionTracker(minutes_ago)
-    
+    parsed_lines = 0
+    filtered_ips = 0
+    blocked_count = 0
+    current_position = 0
+
     log_files = find_log_files(log_file_path)
     if not log_files:
         print(f"Error: No log files found matching {log_file_path}")
-        return 0, 0, 0, 0
-    
-    debug_print(f"Found log files: {log_files}")
-    
-    # Process only the most recent log file
-    current_file = log_files[0][0]
+        return 0, 0, 0
+
+    current_file_path, is_compressed = log_files[0]
+    debug_print(f"Processing log file: {current_file_path} (compressed: {is_compressed})")
+
     try:
-        # Calculate timestamp for the cutoff time
-        # Create timestamp in same format as log files, like 2024/03/22 07:39:53
-        cutoff_time_str = cutoff_time.strftime('%Y/%m/%d %H:%M:%S')
+        # Check for log rotation using inode
+        current_inode = os.stat(current_file_path).st_ino
+        if current_inode != last_processed_inode:
+            debug_print(f"Log file rotated (inode changed from {last_processed_inode} to {current_inode}). Resetting position.")
+            last_processed_position = 0
+            last_processed_inode = current_inode
         
-        # Use grep to get only lines after the cutoff time - more efficient than tail
-        # For 2 minutes of logs, this is likely to be more efficient
-        grep_cmd = f"grep -a -A 100000 '{cutoff_time_str}' {current_file} | head -n 5000"
-        process = subprocess.Popen(grep_cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-        output, error = process.communicate()
-        
-        if error and not output:
-            debug_print(f"Error or no output from grep command: {error}")
-            # Fall back to tail if grep fails
-            tail_cmd = f"tail -n 5000 {current_file}"
-            process = subprocess.Popen(tail_cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-            output, error = process.communicate()
-            
-            if error:
-                print(f"Error running tail command: {error}")
-                return 0, 0, 0, 0
-            
-        parsed_lines = 0
-        filtered_ips = 0
-        blocked_count = 0
-        
-        # Process output in bulk
-        lines = output.decode('utf-8', errors='ignore').splitlines()
-        # Reduce memory usage by processing in chunks
-        chunk_size = 1000
-        
-        for i in range(0, len(lines), chunk_size):
-            chunk = lines[i:i+chunk_size]
-            
-            for line in chunk:
+        file_size = os.path.getsize(current_file_path)
+        # Handle case where file shrunk (e.g., log cleared)
+        if last_processed_position > file_size:
+             debug_print(f"Log file shrunk (size {file_size} < last position {last_processed_position}). Resetting position.")
+             last_processed_position = 0
+
+        # Open the log file (handles compressed or plain text)
+        with open_log_file(current_file_path, is_compressed) as f:
+            # Seek to the last known position
+            if last_processed_position > 0:
+                f.seek(last_processed_position)
+                debug_print(f"Seeking to position: {last_processed_position}")
+
+            # Read and process new lines
+            for line in f:
                 timestamp, ip, is_blocked = parse_log_line(line)
                 if timestamp and ip and timestamp >= cutoff_time:
                     parsed_lines += 1
@@ -479,31 +469,44 @@ def count_unique_ips(log_file_path, minutes_ago, start_position=0):
                         tracker.add_connection(ip)
                     else:
                         filtered_ips += 1
-        
-        # Get current file size for position tracking
-        current_file_size = os.path.getsize(current_file)
-        last_processed_position = current_file_size
-        
-        # Get connection statistics
-        unique_count, total_count = tracker.get_stats()
-        
-        print(f"Processing summary: {unique_count} unique IPs, {total_count} total connections, {blocked_count} blocked requests")
-        print(f"  Successfully parsed entries: {parsed_lines}")
-        print(f"  Filtered IPs: {filtered_ips}")
-        print(f"  Last processed position: {last_processed_position}")
-        
-        # Clear caches periodically to avoid memory growth
-        if len(IP_CACHE) > 10000:
-            IP_CACHE.clear()
-        if len(FILTER_CACHE) > 10000:
-            FILTER_CACHE.clear()
             
-        return unique_count, total_count, blocked_count, last_processed_position
-            
-    except Exception as e:
-        print(f"Error processing log file: {e}")
+            # Update position to the end of the file
+            current_position = f.tell()
+
+    except FileNotFoundError:
+        print(f"Error: Log file {current_file_path} not found during processing.")
         last_processed_position = 0
-        return 0, 0, 0, 0
+        last_processed_inode = 0
+        return 0, 0, 0
+    except Exception as e:
+        print(f"Error processing log file {current_file_path}: {e}")
+        # Attempt to reset position on error, might recover on next run
+        last_processed_position = 0
+        last_processed_inode = 0 # Reset inode as well
+        return 0, 0, 0 # Return zero counts for this run
+
+    # Update global position only after successful processing of the current file chunk
+    last_processed_position = current_position
+
+    unique_count, total_count = tracker.get_stats()
+
+    print(f"Processing summary: {unique_count} unique IPs, {total_count} total connections, {blocked_count} blocked requests")
+    print(f"  Successfully parsed {parsed_lines} new entries since last check.")
+    print(f"  Filtered IPs in new entries: {filtered_ips}")
+    print(f"  Current log file: {current_file_path}")
+    print(f"  Last processed position: {last_processed_position}")
+    print(f"  Last processed inode: {last_processed_inode}")
+
+    # Clear caches periodically to avoid memory growth
+    if len(IP_CACHE) > 10000:
+        IP_CACHE.clear()
+        debug_print("Cleared IP_CACHE")
+    if len(FILTER_CACHE) > 10000:
+        FILTER_CACHE.clear()
+        debug_print("Cleared FILTER_CACHE")
+
+    # Return counts for this interval only
+    return unique_count, total_count, blocked_count
 
 # Store command line args globally to avoid repeated parsing
 global_args = None
@@ -511,7 +514,7 @@ global_args = None
 def update_metrics(minutes_ago):
     """Update global metrics from log file."""
     global unique_ip_count, total_connections, blocked_requests
-    global collection_timestamp, last_processed_position
+    global collection_timestamp, last_processed_position # Keep last_processed_position for context, but it's not returned by count_unique_ips anymore
     global global_args
     
     # Only parse arguments once
@@ -538,15 +541,22 @@ def update_metrics(minutes_ago):
     
     # Update metrics
     try:
-        unique_ip_count, total_connections, blocked_requests, last_processed_position = count_unique_ips(
-            log_file_path, minutes_ago, last_processed_position
+        # last_processed_position is now updated globally inside count_unique_ips
+        unique_count, total_count, blocked_req = count_unique_ips(
+            log_file_path, minutes_ago # Remove last_processed_position from args
         )
+        # NOTE: The ConnectionTracker now manages the time window.
+        # The global counts should reflect the state within the tracker's window.
+        unique_ip_count = unique_count
+        total_connections = total_count
+        blocked_requests = blocked_req # Assuming count_unique_ips now correctly tracks blocked requests within the window
+        
         collection_timestamp = time.time()
         
         # Print explicit values for debugging
-        print(f"Updated raw metrics values: unique_ip_count={unique_ip_count}, total_connections={total_connections}, blocked_requests={blocked_requests}")
-        print(f"Updated metrics: {unique_ip_count} unique IPs, {total_connections} total connections, {blocked_requests} blocked requests")
-        print(f"Last processed position: {last_processed_position}")
+        print(f"Updated metrics: unique_ip_count={unique_ip_count}, total_connections={total_connections}, blocked_requests={blocked_requests}")
+        # The 'last_processed_position' printed here reflects the end of the *last read*, not directly related to the counts returned
+        print(f"Log processing state: last_processed_position={last_processed_position}, last_processed_inode={last_processed_inode}")
     except Exception as e:
         print(f"Error updating metrics: {e}")
         import traceback
@@ -637,7 +647,11 @@ def main():
     if global_args.test:
         print(f"Testing log parsing from {global_args.log_path}...")
         try:
-            unique_count, total_count, blocked_count, _ = count_unique_ips(global_args.log_path, global_args.minutes)
+            # Need to initialize inode/position for test mode
+            global last_processed_inode, last_processed_position
+            last_processed_inode = 0
+            last_processed_position = 0
+            unique_count, total_count, blocked_count = count_unique_ips(global_args.log_path, global_args.minutes)
             print(f"\nTest results:")
             print(f"  Unique users: {unique_count}")
             print(f"  Total connections: {total_count}")
