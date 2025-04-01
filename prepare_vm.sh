@@ -13,6 +13,7 @@ PROF_PATH="/etc/profile"
 SSH_PATH="/etc/ssh/sshd_config"
 FAIL2BAN_JAIL_DIR="fail2ban/jail.d"
 FAIL2BAN_SSHD_CONF="$FAIL2BAN_JAIL_DIR/sshd.conf"
+COMPASSVPN_LOG_PATH="/var/log/compassvpn/"
 
 # Check if a command exists
 command_exists() {
@@ -107,10 +108,10 @@ set_timezone() {
 complete_update() {
     echo 'Updating the System... (This can take a while.)'
 
-    sudo apt-get -qq update >/dev/null 2>&1
-    sudo apt-get -yqq upgrade >/dev/null 2>&1
-    sudo apt-get -yqq full-upgrade >/dev/null 2>&1
-    sudo apt-get -yqq autopurge >/dev/null 2>&1
+    sudo apt-get -qq update
+    sudo apt-get -yqq upgrade
+    sudo apt-get -yqq full-upgrade
+    sudo apt-get -yqq autopurge
 
     echo 'System Updated & Cleaned Successfully.'
 }
@@ -259,6 +260,26 @@ configure_ufw() {
     echo "y" | ufw enable >/dev/null 2>&1
 }
 
+# Setup CompassVPN log directory
+setup_compassvpn_logs() {
+    echo "Setting up CompassVPN log directory..."
+    
+    # Create the log directory if it doesn't exist
+    if [ ! -d "$COMPASSVPN_LOG_PATH" ]; then
+        echo "Creating CompassVPN log directory at $COMPASSVPN_LOG_PATH."
+        mkdir -p "$COMPASSVPN_LOG_PATH"
+    fi
+    
+    # Set appropriate permissions (755 for directory)
+    echo "Setting permissions for $COMPASSVPN_LOG_PATH."
+    chmod 755 "$COMPASSVPN_LOG_PATH."
+    
+    # Set ownership to root:root (standard for system logs)
+    echo "Setting ownership for $COMPASSVPN_LOG_PATH."
+    chown root:root "$COMPASSVPN_LOG_PATH."
+    
+    echo "CompassVPN log directory setup completed successfully."
+}
 
 # Process fail2ban filter with NGINX_PATH
 process_fail2ban_filter() {
@@ -326,6 +347,9 @@ optimize_ufw
 sleep 0.5
 
 configure_ufw
+sleep 0.5
+
+setup_compassvpn_logs
 sleep 0.5
 
 process_fail2ban_filter
