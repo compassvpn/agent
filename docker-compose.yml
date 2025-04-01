@@ -46,7 +46,7 @@ services:
       dockerfile: Dockerfile
     volumes:
       - "acme:/root/.acme.sh/"
-      - "/var/log/nginx:/var/log/nginx"
+      - "/var/log:/var/log"
     restart: always
     env_file:
       - env_file
