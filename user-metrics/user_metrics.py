@@ -13,7 +13,7 @@ import gzip
 import os
 
 # Default values
-DEFAULT_LOG_PATH = '/var/log/xray_access.log'
+DEFAULT_LOG_PATH = '/var/log/compassvpn/xray_access.log'
 DEFAULT_PORT = 9551
 DEFAULT_INTERVAL = 300  # seconds
 DEFAULT_MINUTES = 2
