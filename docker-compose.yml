@@ -13,15 +13,15 @@ services:
     logging:
       driver: "json-file"
       options:
-        max-size: "1m"  # Limit log file size to 1 MB
-        max-file: "1"   # Retain up to 1 log file
+        max-size: "1m"
+        max-file: "1"
 
   xray:
     build:
       context: ./xray
       dockerfile: Dockerfile
     volumes:
-      - "/var/log:/var/log"  # Mount the host log directory to ensure logs are accessible
+      - "/var/log:/var/log"
     cap_add:
       - NET_ADMIN
     restart: always
@@ -34,8 +34,8 @@ services:
     logging:
       driver: "json-file"
       options:
-        max-size: "1m"  # Limit log file size to 1 MB
-        max-file: "3"   # Retain up to 3 log files (rotate)
+        max-size: "1m"
+        max-file: "3"
     ports:
       - "443:443/tcp"
       - "443:443/udp"
@@ -54,6 +54,8 @@ services:
       - "80:80/tcp"
       - "2053:2053/tcp"
       - "2053:2053/udp"
+      - "2083:2083/tcp"
+      - "2083:2083/udp"
       - "8443:8443/tcp"
       - "8443:8443/udp"
     environment:
@@ -79,17 +81,19 @@ services:
       context: ./user-metrics
       dockerfile: Dockerfile
     volumes:
-      - "/var/log:/var/log:ro"  # Mount log directory as read-only
+      - "/var/log:/var/log:ro"
     restart: always
     environment:
       - TZ=UTC
+    depends_on:
+      - xray
     logging:
       driver: "json-file"
       options:
         max-size: "1m"
         max-file: "3"
     ports:
-      - "127.0.0.1:9551:9551"  # Expose only to localhost
+      - "127.0.0.1:9551:9551"
 
   metric-forwarder:
     build:
@@ -107,7 +111,7 @@ services:
   node-exporter:
     image: prom/node-exporter:v1.9.0
     restart: always
-    network_mode: host  # needs to access to the host network interfaces
+    network_mode: host
     volumes:
       - "/proc:/host/proc:ro"
       - "/sys:/host/sys:ro"
