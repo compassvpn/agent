@@ -270,9 +270,9 @@ setup_compassvpn_logs() {
         mkdir -p "$COMPASSVPN_LOG_PATH"
     fi
 
-    # Set appropriate permissions (755 for directory)
+    # Set appropriate permissions (777 for directory)
     echo "Setting permissions for $COMPASSVPN_LOG_PATH."
-    chmod 755 "$COMPASSVPN_LOG_PATH" # Removed trailing dot
+    chmod 777 "$COMPASSVPN_LOG_PATH" # Removed trailing dot
 
     # Set ownership to root:root (standard for system logs)
     echo "Setting ownership for $COMPASSVPN_LOG_PATH."
