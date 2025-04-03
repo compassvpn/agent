@@ -7,13 +7,15 @@ services:
     restart: always
     env_file:
       - env_file
+    environment:
+      - TZ=UTC
     volumes:
       - "/etc/machine-id:/host/etc/machine-id"
       - "acme:/root/.acme.sh/"
     logging:
       driver: "json-file"
       options:
-        max-size: "1m"
+        max-size: "10m"
         max-file: "1"
 
   xray:
@@ -34,8 +36,8 @@ services:
     logging:
       driver: "json-file"
       options:
-        max-size: "1m"
-        max-file: "3"
+        max-size: "10m"
+        max-file: "1"
     ports:
       - "443:443/tcp"
       - "443:443/udp"
@@ -65,8 +67,8 @@ services:
     logging:
       driver: "json-file"
       options:
-        max-size: "5m"
-        max-file: "3"
+        max-size: "10m"
+        max-file: "1"
 
   v2ray-exporter:
     build:
@@ -90,8 +92,8 @@ services:
     logging:
       driver: "json-file"
       options:
-        max-size: "1m"
-        max-file: "3"
+        max-size: "10m"
+        max-file: "1"
     ports:
       - "127.0.0.1:9551:9551"
 
@@ -102,6 +104,8 @@ services:
     restart: always
     env_file:
       - env_file
+    environment:
+      - TZ=UTC
     extra_hosts:
       - "host.docker.internal:host-gateway"
     depends_on:
@@ -117,7 +121,10 @@ services:
       - "/sys:/host/sys:ro"
       - "/:/rootfs:ro"
       - "/var/run/docker.sock:/var/run/docker.sock"
+    environment:
+      - TZ=UTC
     command:
+      - "--log.level=warn"
       - "--path.procfs=/host/proc"
       - "--path.sysfs=/host/sys"
       - '--collector.disable-defaults'
@@ -130,7 +137,11 @@ services:
       - '--collector.stat'
       - '--collector.pressure'
       - "--web.listen-address=172.17.0.1:9100" # only allow access from host.docker.internal interface
-#      - "--web.listen-address=0.0.0.0:9100" # only allow access from host.docker.internal interface
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "1"
 
   fail2ban:
     build:
@@ -138,6 +149,8 @@ services:
       dockerfile: Dockerfile
     restart: always
     network_mode: host
+    environment:
+      - TZ=UTC
     cap_add:
       - NET_ADMIN
       - NET_RAW
@@ -149,8 +162,8 @@ services:
     logging:
       driver: "json-file"
       options:
-        max-size: "1m"
-        max-file: "3"
+        max-size: "10m"
+        max-file: "1"
 
 volumes:
   acme:
