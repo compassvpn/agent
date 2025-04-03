@@ -263,22 +263,38 @@ configure_ufw() {
 # Setup CompassVPN log directory
 setup_compassvpn_logs() {
     echo "Setting up CompassVPN log directory..."
-    
+
     # Create the log directory if it doesn't exist
     if [ ! -d "$COMPASSVPN_LOG_PATH" ]; then
         echo "Creating CompassVPN log directory at $COMPASSVPN_LOG_PATH."
         mkdir -p "$COMPASSVPN_LOG_PATH"
     fi
-    
+
     # Set appropriate permissions (755 for directory)
     echo "Setting permissions for $COMPASSVPN_LOG_PATH."
-    chmod 755 "$COMPASSVPN_LOG_PATH."
-    
+    chmod 755 "$COMPASSVPN_LOG_PATH" # Removed trailing dot
+
     # Set ownership to root:root (standard for system logs)
     echo "Setting ownership for $COMPASSVPN_LOG_PATH."
-    chown root:root "$COMPASSVPN_LOG_PATH."
-    
-    echo "CompassVPN log directory setup completed successfully."
+    chown root:root "$COMPASSVPN_LOG_PATH" # Removed trailing dot
+
+    # Create log files
+    echo "Creating log files..."
+    touch "$COMPASSVPN_LOG_PATH/nginx_access.log"
+    touch "$COMPASSVPN_LOG_PATH/nginx_error.log"
+    touch "$COMPASSVPN_LOG_PATH/xray_access.log"
+    touch "$COMPASSVPN_LOG_PATH/xray_error.log"
+    touch "$COMPASSVPN_LOG_PATH/xray.log"
+
+    # Set log file permissions
+    echo "Setting log file permissions to 777..."
+    chmod 777 "$COMPASSVPN_LOG_PATH/nginx_access.log"
+    chmod 777 "$COMPASSVPN_LOG_PATH/nginx_error.log"
+    chmod 777 "$COMPASSVPN_LOG_PATH/xray_access.log"
+    chmod 777 "$COMPASSVPN_LOG_PATH/xray_error.log"
+    chmod 777 "$COMPASSVPN_LOG_PATH/xray.log"
+
+    echo "CompassVPN log directory and files setup completed successfully."
 }
 
 # Process fail2ban filter with NGINX_PATH
