@@ -109,7 +109,7 @@ services:
       - node-exporter
 
   node-exporter:
-    image: prom/node-exporter:v1.9.0
+    image: prom/node-exporter:v1.9.1
     restart: always
     network_mode: host
     volumes:
