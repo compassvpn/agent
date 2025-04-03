@@ -17,7 +17,7 @@ if not remote_write_url.endswith("/push"):
 def generate_config():
     config = {
       "server": {
-        "log_level": "info"
+        "log_level": "warn"
       },
       "metrics": {
         "wal_directory": "/tmp/grafana-agent-wal",
