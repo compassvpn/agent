@@ -26,8 +26,9 @@ def format_label(key_string: str) -> str:
 app.jinja_env.filters['format_label'] = format_label
 # --- End Custom Filter ---
 
-ENV_PATH = 'env_file' # The main configuration file
-BOOTSTRAP_SCRIPT = 'bootstrap.sh' # Script to run after saving config (optional)
+ENV_PATH = '../env_file' # Path to the main configuration file (in PARENT dir, relative to app.py)
+BOOTSTRAP_SCRIPT = '../bootstrap.sh' # Script to run after saving config (in PARENT dir)
+RESTART_SCRIPT = '../restart.sh' # Restart script in PARENT dir
 
 # Defines the structure, types, defaults, and help text for all configuration fields.
 # This drives the web UI generation and saving logic.
@@ -304,69 +305,129 @@ def index() -> Union[str, Response]:
     config_data = {}
     for item in CONFIG_SCHEMA:
         key = item['name']
-        # Get value from current config or use schema default
         config_data[key] = current_config.get(key, item.get('default', ''))
-        # Ensure checkbox default is used correctly if not in .env
         if item['type'] == 'checkbox' and key not in current_config:
             config_data[key] = item.get('default', [])
-        # Ensure other list-like defaults (though none currently) are handled if needed
 
     # Handle form submission
     if request.method == 'POST':
-        # Get submitted data (handling lists for checkboxes)
         submitted_data = request.form.to_dict(flat=False)
         action = submitted_data.pop('action', [None])[0]
-
-        # Start with current config to preserve unsubmitted fields (e.g., hidden ones)
         env_to_save = current_config.copy()
 
-        # Update env_to_save with submitted data
         for key, values in submitted_data.items():
             if not values: continue
-
             schema_item = next((item for item in CONFIG_SCHEMA if item['name'] == key), None)
-            if not schema_item: continue # Skip fields not in schema
-
-            # Handle specific field types from form
+            if not schema_item: continue
             if schema_item['type'] == 'checkbox':
-                env_to_save[key] = values # Store submitted list
+                env_to_save[key] = values
             elif key == 'CUSTOM_DNS' and values[0] == 'custom':
                 custom_text = request.form.get('CUSTOM_DNS_TEXT', '').strip()
-                # If custom text is empty, fall back to schema default for CUSTOM_DNS
                 env_to_save[key] = custom_text if custom_text else next((item['default'] for item in CONFIG_SCHEMA if item['name'] == key), 'custom')
             elif key in ['CUSTOM_DNS_TEXT', 'REDEPLOY_INTERVAL_custom']: # Skip helper fields
                  continue
             else:
-                 # Single value fields (now includes REDEPLOY_INTERVAL)
                  env_to_save[key] = values[0]
 
-        # Now env_to_save contains original loaded values updated with submitted ones
         write_env_file(ENV_PATH, env_to_save)
-        flash(f'{os.path.basename(ENV_PATH)} saved successfully!', 'success')
 
+        # Check which action to perform after saving
         if action == 'save_close':
+            flash(f'{os.path.basename(ENV_PATH)} saved successfully!', 'success')
             shutdown_server()
-            return "Config saved. Panel shutting down. To reopen, run ./start_panel.sh in server terminal."
+            # Return a simple styled message
+            return '''
+                <div style="padding: 20px; font-family: sans-serif; background-color: #e9ecef; border-radius: 5px;">
+                    <h4>Configuration Saved</h4>
+                    <p>Panel is shutting down. To reopen, run <code>./start_panel.sh</code> in the server terminal.</p>
+                </div>
+            '''
         elif action == 'save_close_bootstrap':
-            try:
-                os.chmod(BOOTSTRAP_SCRIPT, 0o755)
-                # Explicitly execute relative to current directory
-                subprocess.Popen([f"./{BOOTSTRAP_SCRIPT}"])
-                shutdown_server()
-                # Return a message including restart instructions
-                return "Config saved. Bootstrap started. Panel shutting down. To reopen, run ./start_panel.sh in server terminal."
+            flash(f'{os.path.basename(ENV_PATH)} saved successfully!', 'success')
 
-            except Exception as e:
-                 flash(f'Error starting bootstrap script: {e}', 'danger')
-                 return redirect(url_for('index'))
-        else: # Just 'save'
-            return redirect(url_for('index'))
+            # Check IDENTIFIER to determine which script should run
+            newly_saved_config = load_current_config(ENV_PATH)
+            identifier_value = newly_saved_config.get('IDENTIFIER', '').strip()
 
-    # Render the template for GET requests
-    return render_template('index.html',
-                           config_schema=CONFIG_SCHEMA,
-                           ui_groups=UI_GROUPS,
-                           config_data=config_data)
+            script_to_run = '' # Use the constant name here
+            script_message = ''
+            if identifier_value:
+                script_to_run = RESTART_SCRIPT # Use constant e.g., '../restart.sh'
+                script_message = f'Restarting services using {os.path.basename(RESTART_SCRIPT)}...'
+                print(f"Found IDENTIFIER, running script: {script_to_run}")
+            else:
+                script_to_run = BOOTSTRAP_SCRIPT # Use constant e.g., '../bootstrap.sh'
+                script_message = f'IDENTIFIER not found/empty. Running initial bootstrap using {os.path.basename(BOOTSTRAP_SCRIPT)}...'
+                print(f"IDENTIFIER not found/empty, running script: {script_to_run}")
+
+            # Construct full path relative to the app.py file
+            full_script_path = os.path.abspath(os.path.join(os.path.dirname(__file__), script_to_run))
+            script_basename = os.path.basename(full_script_path) # Get the actual script name
+
+            if os.path.exists(full_script_path):
+                try:
+                    print(f"Attempting to run script: {full_script_path}")
+                    # Ensure script is executable (best effort)
+                    try:
+                        os.chmod(full_script_path, 0o755)
+                    except Exception as chmod_err:
+                        print(f"Warning: Could not chmod script {full_script_path}: {chmod_err}")
+
+                    # Run the script, detached, but capture output temporarily for debugging
+                    # Set working directory to the script's directory (parent of web_panel)
+                    script_dir = os.path.dirname(full_script_path)
+                    print(f"Running subprocess in directory: {script_dir}")
+                    subprocess.Popen(
+                        [full_script_path],
+                        start_new_session=True,
+                        cwd=script_dir  # Set working directory
+                        # stdout=subprocess.DEVNULL, # Temporarily removed for debugging
+                        # stderr=subprocess.DEVNULL  # Temporarily removed for debugging
+                    )
+                    flash(f'Successfully initiated: {script_basename}', 'info')
+                    script_message = f'Successfully initiated background process: {script_basename}.'
+                except Exception as e:
+                    print(f"Error running script {full_script_path}: {e}")
+                    flash(f'Error trying to run {script_basename}: {e}', 'danger')
+                    script_message = f'Error trying to run {script_basename}: {e}'
+            else:
+                error_msg = f"Script not found: {full_script_path}"
+                print(error_msg)
+                flash(error_msg, 'danger')
+                script_message = error_msg
+
+            shutdown_server()
+            # Return generic message, start_panel.sh will handle execution
+            return f'''
+                <div style="padding: 20px; font-family: sans-serif; background-color: #e9ecef; border-radius: 5px;">
+                    <h4>Configuration Saved</h4>
+                    <p>{script_message}</p>
+                    <p>Panel is shutting down...</p>
+                 </div>
+            '''
+
+        # Default action: just save and reload the page
+        flash(f'{os.path.basename(ENV_PATH)} saved successfully!', 'success')
+        return redirect(url_for('index'))
+
+    # Prepare UI groups for rendering
+    grouped_schema = {group: [] for group in UI_GROUPS}
+    all_grouped_keys = set(key for group_keys in UI_GROUPS.values() for key in group_keys)
+
+    # Add fields to their respective groups
+    for item in CONFIG_SCHEMA:
+        key = item['name']
+        found_in_group = False
+        for group, keys in UI_GROUPS.items():
+            if key in keys:
+                grouped_schema[group].append(item)
+                found_in_group = True
+                break
+        # Optional: Handle ungrouped items if necessary
+        # if not found_in_group:
+        #    print(f"Warning: Field '{key}' not assigned to any UI group.")
+
+    return render_template('index.html', schema=CONFIG_SCHEMA, config_data=config_data, ui_groups=grouped_schema)
 
 # Script entry point: Set up directories and run the Flask app.
 if __name__ == '__main__':
