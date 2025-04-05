@@ -232,40 +232,46 @@ def load_current_config(file_path: str) -> Dict[str, str]:
 
 # Writes the configuration data to the env_file, preserving order and adding comments from the schema.
 def write_env_file(file_path: str, env_data: Dict[str, Any]) -> None:
+    # First, load the original config to find non-schema variables
+    original_config = load_current_config(file_path)
+
     lines_to_write: List[str] = []
+    schema_keys = {item['name'] for item in CONFIG_SCHEMA}
     schema_comments = {item['name']: item.get('comment', '') for item in CONFIG_SCHEMA}
     all_keys_in_schema_order = [item['name'] for item in CONFIG_SCHEMA]
 
+    # Write schema-defined variables first
     for key in all_keys_in_schema_order:
         schema_item = next((item for item in CONFIG_SCHEMA if item['name'] == key), None)
         if not schema_item: continue
 
-        # Add comment from schema if it exists
         comment = schema_comments.get(key)
         if comment:
             lines_to_write.append(f"# {comment}\n")
 
-        # Get value from submitted data or default
         value = env_data.get(key, schema_item.get('default', ''))
 
-        # Handle list type (checkboxes)
         if isinstance(value, list):
             value = ','.join(value)
 
-        # Ensure value is string, stripped, and contains no newlines
         value_str = str(value).strip().replace('\n', ' ').replace('\r', '')
+        lines_to_write.append(f"{key}={value_str}\n\n")
 
-        lines_to_write.append(f"{key}={value_str}\n")
-
-        # Add a blank line after each variable for spacing (optional, but can improve readability)
-        lines_to_write.append("\n")
+    # Append non-schema variables from the original file
+    preserved_variables = False
+    for key, value in original_config.items():
+        if key not in schema_keys:
+            if not preserved_variables:
+                lines_to_write.append("\n# --- Non-Schema Variables (Preserved) ---\n")
+                preserved_variables = True
+            lines_to_write.append(f"# Preserving non-schema variable\n")
+            lines_to_write.append(f"{key}={value}\n\n")
 
     try:
-        # Write using newline='' to prevent OS-specific newline translation
         with open(file_path, 'w', newline='', encoding='utf-8') as f:
             f.writelines(lines_to_write)
     except Exception as e:
-        print(f"Error writing {file_path}: {e}") # Log error
+        print(f"Error writing {file_path}: {e}")
         flash(f'Error writing configuration file: {e}', 'danger')
 
 # Sends a signal to shut down the Flask development server.
@@ -385,7 +391,7 @@ def index() -> Union[str, Response]:
                         # stderr=subprocess.DEVNULL  # Temporarily removed for debugging
                     )
                     flash(f'Successfully initiated: {script_basename}', 'info')
-                    script_message = f'Successfully initiated background process: {script_basename}.'
+                    script_message = f'Successfully initiated {script_basename}.'
                 except Exception as e:
                     print(f"Error running script {full_script_path}: {e}")
                     flash(f'Error trying to run {script_basename}: {e}', 'danger')
@@ -399,10 +405,10 @@ def index() -> Union[str, Response]:
             shutdown_server()
             # Return generic message, start_panel.sh will handle execution
             return f'''
-                <div style="padding: 20px; font-family: sans-serif; background-color: #e9ecef; border-radius: 5px;">
-                    <h4>Configuration Saved</h4>
+                <div style="padding: 20px; font-family: sans-serif; background-color: rgb(139, 92, 246, 0.5); border-radius: 10px;">
+                    <h3>Configuration Saved.</h3>
                     <p>{script_message}</p>
-                    <p>Panel is shutting down...</p>
+                    <p>Panel is closed. To reopen, run ./start_panel.sh in the server terminal.</p>
                  </div>
             '''
 
