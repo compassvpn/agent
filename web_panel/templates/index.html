@@ -30,16 +30,17 @@
             {% endfor %}
 
             {# Iterate through the UI_GROUPS defined in app.py #}
-            {% for group_title, field_names in ui_groups.items() %}
+            {% for group_title, items_in_group in ui_groups.items() %}
                 <div class="card mb-4 {% if loop.first %}mt-4{% endif %}">
                     <div class="card-header">
                         <h4 class="mb-0">{{ group_title }}</h4>
                     </div>
                     <div class="card-body">
-                        {# Iterate through the field names for this group #}
-                        {% for key in field_names %}
-                             {# Get the schema item and current value #}
-                             {% set item = schema_map.get(key) %}
+                        {# Iterate through the schema item dictionaries for this group #}
+                        {% for item in items_in_group %}
+                             {# Extract key from the item dictionary #}
+                             {% set key = item.name %}
+                             {# We already have 'item', no need for schema_map lookup #}
                              {% if item %}
                                 {% set current_value = config_data.get(key, item.default) %}
                                 {% set field_id = key %}
