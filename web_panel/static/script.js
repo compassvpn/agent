@@ -80,14 +80,31 @@ function toggleCustomDnsText(selectElement) {
  }
 
 // Confirmation dialog for potentially disruptive actions
-function confirmAction(actionType) {
+// Also checks form validity before allowing submission
+function confirmAction(actionType, form) {
     let message = "Are you sure?";
     if (actionType === 'save_close') {
         message = "This will save the configuration and STOP the web panel.\n\nTo reopen, run ./start_panel.sh in server terminal.\n\nProceed?";
     } else if (actionType === 'save_close_bootstrap') {
-        message = "This will save the configuration, STOP the web panel, and START the bootstrap script.\n\nTo reopen, run ./start_panel.sh in server terminal.\n\nProceed?";
+        message = "This will save the configuration, STOP the web panel, and trigger the relevant start/restart script.\n\nTo reopen, run ./start_panel.sh in server terminal.\n\nProceed?";
     }
-    return confirm(message);
+
+    const confirmed = confirm(message);
+
+    if (confirmed) {
+        const isValid = form.checkValidity();
+        // Check HTML5 form validity AFTER confirmation
+        if (!isValid) {
+            // If invalid, explicitly trigger browser validation UI and prevent submission
+            form.reportValidity();
+            return false;
+        }
+        // If valid, allow submission
+        return true;
+    } else {
+        // If user cancelled confirmation, prevent submission
+        return false;
+    }
 }
 
 // Validation: Ensure at least one inbound checkbox is selected
