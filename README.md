@@ -2,6 +2,8 @@
 
 # Compass VPN Agent
 
+### Read the complete guide [here](https://www.compassvpn.org/installation/).
+
 ## Features
 
 1. One-command VPN setup and remote monitoring.
@@ -38,8 +40,6 @@ sudo apt update -qq && sudo apt install -yqq git
 ```
 
 # How to run
-
-### Read the complete guide [here](https://www.compassvpn.org/installation/).
 
 ## Getting Started
 
