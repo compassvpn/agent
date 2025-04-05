@@ -5,7 +5,7 @@
 ### Read the complete guide [on our website](https://www.compassvpn.org/installation/).
 
 ## Features
-### [Read Here.](ttps://www.compassvpn.org/features/)
+### [Read Here.](https://www.compassvpn.org/features/)
 
 ## Requirements
 
