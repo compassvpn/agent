@@ -391,11 +391,11 @@ def index() -> Union[str, Response]:
                         # stderr=subprocess.DEVNULL  # Temporarily removed for debugging
                     )
                     flash(f'Successfully initiated: {script_basename}', 'info')
-                    script_message = f'Successfully initiated {script_basename}.'
+                    script_message = f'Successfully initiated <strong>{script_basename}</strong>.'
                 except Exception as e:
                     print(f"Error running script {full_script_path}: {e}")
                     flash(f'Error trying to run {script_basename}: {e}', 'danger')
-                    script_message = f'Error trying to run {script_basename}: {e}'
+                    script_message = f'Error trying to run <strong>{script_basename}</strong>: {e}'
             else:
                 error_msg = f"Script not found: {full_script_path}"
                 print(error_msg)
@@ -408,7 +408,7 @@ def index() -> Union[str, Response]:
                 <div style="padding: 20px; font-family: sans-serif; background-color: rgb(139, 92, 246, 0.5); border-radius: 10px;">
                     <h3>Configuration Saved.</h3>
                     <p>{script_message}</p>
-                    <p>Panel is closed. To reopen, run ./start_panel.sh in the server terminal.</p>
+                    <p>Panel is closed. To reopen, run <strong>./start_panel.sh</strong> in the server terminal.</p>
                  </div>
             '''
 
