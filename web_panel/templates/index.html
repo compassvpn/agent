@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="en" data-bs-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CompassVPN Agent Configuration Panel</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.5/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-SgOJa3DmI69IUzQ2PVdRZhwQ+dy64/BUtbMJw1MZ8t5HZApcHrRKUc4W0kG879m7" crossorigin="anonymous">
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <div class="container">
+        <h1 class="mb-4">CompassVPN Agent Configuration</h1>
+        <h3 class="mb-4">For Complete Documentation, Please Visit <a href="https://www.compassvpn.org/installation/configuration/">Here</a>.</h3>
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                {% for category, message in messages %}
+                    <div class="alert alert-{{ category }} alert-dismissible fade show" role="alert">
+                        {{ message }}
+                        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                    </div>
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
+
+        <form method="POST">
+            {# Generate a dictionary mapping field name to schema item for easy lookup #}
+            {% set schema_map = {} %}
+            {% for item in config_schema %}
+                {% do schema_map.update({item.name: item}) %}
+            {% endfor %}
+
+            {# Iterate through the UI_GROUPS defined in app.py #}
+            {% for group_title, field_names in ui_groups.items() %}
+                <div class="card mb-4 {% if loop.first %}mt-4{% endif %}">
+                    <div class="card-header">
+                        <h4 class="mb-0">{{ group_title }}</h4>
+                    </div>
+                    <div class="card-body">
+                        {# Iterate through the field names for this group #}
+                        {% for key in field_names %}
+                             {# Get the schema item and current value #}
+                             {% set item = schema_map.get(key) %}
+                             {% if item %}
+                                {% set current_value = config_data.get(key, item.default) %}
+                                {% set field_id = key %}
+                                {% set comment = item.get('comment', '') %}
+                                {% set condition = item.get('condition') %}
+                                {% set field_classes = ['mb-3'] %}
+                                {% set div_attributes = [] %}
+
+                                {# --- Handle Conditional Logic --- #}
+                                {% if condition %}
+                                    {% do field_classes.append('conditional-field') %}
+                                    {% do div_attributes.append('data-condition-field=' + condition.field) %}
+                                    {% do div_attributes.append('data-condition-value=' + condition.value) %}
+                                {% endif %}
+                                {# Special handling for metric fields #}
+                                {% if key in ['GRAFANA_AGENT_REMOTE_WRITE_URL', 'GRAFANA_AGENT_REMOTE_WRITE_USER', 'GRAFANA_AGENT_REMOTE_WRITE_PASSWORD'] %}
+                                     {% do field_classes.append('metric-fields') %}
+                                     {% do field_classes.append('grafana-fields') %}
+                                {% elif key in ['PUSHGATEWAY_URL', 'PUSHGATEWAY_AUTH_USER', 'PUSHGATEWAY_AUTH_PASSWORD'] %}
+                                     {% do field_classes.append('metric-fields') %}
+                                     {% do field_classes.append('pushgateway-fields') %}
+                                {% endif %}
+
+                                {# --- Render Field Container --- #}
+                                <div class="{{ field_classes | join(' ') }}" {{ div_attributes | join (' ') | safe }}>
+                                    {# Use custom filter for label formatting #}
+                                    <label for="{{ field_id }}" class="form-label">{{ key | format_label }}</label>
+
+                                    {# --- Render Input based on Schema Type --- #}
+                                    {% set is_conditionally_required = condition is defined %}
+                                    {% set required_attr = 'required' if not is_conditionally_required else '' %} {# Default required unless conditional #}
+                                    {# Note: JS will handle adding/removing 'required' for conditional fields based on visibility #}
+
+                                    {% if item.type == 'text' %}
+                                        {% set placeholder = item.get('placeholder', '') %}
+                                        {% set pattern_attr = '' %}
+                                        {% set title_attr = '' %}
+                                        {% set oninput_attr = '' %}
+                                        {% if key == 'GRAFANA_AGENT_REMOTE_WRITE_URL' %}
+                                            {% set pattern_attr = 'pattern="https://.*"' %}
+                                            {% set title_attr = 'title="URL must start with https://"' %}
+                                            {% set oninput_attr = '' %}
+                                        {% elif key == 'PUSHGATEWAY_URL' %}
+                                            {% set pattern_attr = 'pattern="https?://.*"' %}
+                                            {% set title_attr = 'title="URL must start with http:// or https://"' %}
+                                            {% set oninput_attr = '' %}
+                                        {% elif key == 'NGINX_FAKE_WEBSITE' %}
+                                            {# JS validation used #}
+                                            {% set pattern_attr = '' %}
+                                            {% set title_attr = '' %}
+                                            {% set oninput_attr = 'oninput="validateSpecificFields()"' %}
+                                        {% elif key == 'CF_CLEAN_IP_DOMAIN' %}
+                                            {# JS validation used #}
+                                            {% set pattern_attr = '' %}
+                                            {% set title_attr = '' %}
+                                            {% set oninput_attr = 'oninput="validateSpecificFields()"' %}
+                                        {% else %}
+                                            {% set pattern_attr = '' %}
+                                            {% set title_attr = '' %}
+                                            {% set oninput_attr = '' %}
+                                        {% endif %}
+                                        <input type="text" class="form-control" id="{{ field_id }}" name="{{ key }}" value="{{ current_value }}" placeholder="{{ placeholder }}" {{ required_attr }} {{ pattern_attr | safe }} {{ title_attr | safe }} {{ oninput_attr | safe }}>
+
+                                    {% elif item.type == 'password' %}
+                                        {% set placeholder = item.get('placeholder', 'Enter value') %} {# Generic default for password #}
+                                        <input type="password" class="form-control" id="{{ field_id }}" name="{{ key }}" value="{{ current_value }}" placeholder="{{ placeholder }}" {{ required_attr }}>
+
+                                    {% elif item.type == 'toggle' %}
+                                        {# Toggles don't typically use 'required', the hidden input handles submission #}
+                                        <div class="form-check form-switch">
+                                            {% set is_checked = current_value == item.on_value %}
+                                            <input class="form-check-input" type="checkbox" role="switch" id="{{ field_id }}" name="{{ key }}" value="{{ item.on_value }}" {% if is_checked %}checked{% endif %} {% if key == 'CF_ENABLE' %}onchange="handleConditionChange(this)"{% endif %}>
+                                            <input type="hidden" name="{{ key }}" value="{{ item.off_value }}" {% if is_checked %}disabled{% endif %}>
+                                            {% set on_text = 'On' if item.on_value == 'on' else 'Enabled' if item.on_value == 'enable' else 'True' if item.on_value == 'true' else item.on_value %}
+                                            {% set off_text = 'Off' if item.off_value == 'off' else 'Disabled' if item.off_value == 'disable' else 'False' if item.off_value == 'false' else item.off_value %}
+                                            <label class="form-check-label" for="{{ field_id }}">{{ off_text }} / {{ on_text }}</label>
+                                        </div>
+
+                                    {% elif item.type == 'select' %}
+                                        {# Selects use the default value, making 'required' less critical #}
+                                        <select class="form-select" id="{{ field_id }}" name="{{ key }}" {% if key == 'METRIC_PUSH_METHOD' %}onchange="handleConditionChange(this)"{% endif %}>
+                                            {% for option in item.options %}
+                                            <option value="{{ option }}" {% if current_value == option %}selected{% endif %}>{{ option.replace('_',' ').title() if option is string else option }}</option>
+                                            {% endfor %}
+                                        </select>
+
+                                    {% elif item.type == 'select_custom' %}
+                                        {# Custom Select (REDEPLOY_INTERVAL, CUSTOM_DNS) #}
+                                        {# Required logic handled by individual inputs below if needed #}
+                                        <select class="form-select" id="{{ field_id }}" name="{{ key }}" {% if key == 'CUSTOM_DNS' %}onchange="toggleCustomDnsText(this)"{% endif %}>
+                                            {% for option in item.options %}
+                                            <option value="{{ option }}" {% if current_value == option %}selected{% endif %}>{{ option.replace('_',' ').title() }}</option>
+                                            {% endfor %}
+                                            {# Handle case where current value is a custom one not in options #}
+                                            {% if current_value not in item.options and current_value %}
+                                            <option value="{{ current_value }}" selected>Custom: {{ current_value }}</option>
+                                            {% endif %}
+                                            {# Option to allow using the text box for REDEPLOY_INTERVAL #}
+                                            {% if key == 'REDEPLOY_INTERVAL' %}
+                                            <option value=""> (Set Custom Below) </option>
+                                            {% endif %}
+                                            {# Option to switch CUSTOM_DNS to text box mode #}
+                                            {% if key == 'CUSTOM_DNS' %}
+                                            <option value="custom" {% if current_value not in item.options and current_value %}selected{% endif %}>Custom</option>
+                                            {% endif %}
+                                        </select>
+                                        {# Custom text input part - Mark required if CUSTOM_DNS and custom is selected #}
+                                        {% set custom_field_id = key + '_custom' %}
+                                        {% set custom_text_value = current_value if current_value not in item.options else '' %}
+                                        {% set custom_input_id = 'CUSTOM_DNS_TEXT' if key == 'CUSTOM_DNS' else custom_field_id %}
+                                        {% set custom_placeholder = item.get('placeholder', 'Enter custom value') %}
+                                        {% set input_class = 'form-control mt-1' + (' custom-dns-text-input' if key == 'CUSTOM_DNS' else '') %}
+                                        <input type="text" class="{{ input_class }}" id="{{ custom_input_id }}" name="{{ custom_field_id }}" placeholder="{{ custom_placeholder }}" value="{{ custom_text_value }}" {% if key == 'CUSTOM_DNS' %}data-is-custom-dns-text{% endif %}>
+                                         {# Required handled by JS for custom DNS text #}
+
+                                    {% elif item.type == 'checkbox' %}
+                                        {# Checkboxes don't typically use 'required' in the same way #}
+                                        {% set current_list = current_value if current_value is iterable and current_value is not string else current_value.split(',') %}
+                                        <div class="border p-2 rounded">
+                                        {% for option in item.options %}
+                                            <div class="form-check">
+                                                <input class="form-check-input inbound-checkbox" type="checkbox" id="{{ field_id }}_{{ loop.index0 }}" name="{{ field_id }}" value="{{ option }}"
+                                                       {{ 'checked' if option in current_list }} onchange="validateInbounds()">
+                                                <label class="form-check-label" for="{{ field_id }}_{{ loop.index0 }}">
+                                                    {{ option }}
+                                                </label>
+                                            </div>
+                                        {% endfor %}
+                                        </div>
+
+                                    {% endif %}
+
+                                    {% if comment %}
+                                        <div class="form-text">{{ comment | safe }}</div>
+                                    {% endif %}
+
+                                </div>
+                             {% endif %}
+                        {% endfor %}
+                    </div>
+                </div>
+            {% endfor %}
+
+            {# Button Explanations - Moved Below Buttons #}
+            <p class="text-center text-muted small mt-2 mb-4" style="font-size: 0.75em;">
+                <strong class="text-primary">Save file:</strong> Writes changes to <code>env_file</code>.<br>
+                <strong class="text-secondary">Save & Close Panel:</strong> Writes changes and stops this panel (requires confirmation).<br>
+                <strong class="text-success">Save, Close & Start:</strong> Writes changes, stops panel, runs bootstrap (requires confirmation).
+            </p>
+
+            {# Buttons Section - Centered with Spacing #}
+            <div class="d-flex justify-content-center mt-4">
+                <button type="submit" name="action" value="save" class="btn btn-primary me-2">Save file</button>
+                <button type="submit" name="action" value="save_close" class="btn btn-secondary me-2" onclick="return confirmAction('save_close');">Save & Close Panel</button>
+                <button type="submit" name="action" value="save_close_bootstrap" class="btn btn-success" onclick="return confirmAction('save_close_bootstrap');">Save, Close & Start</button>
+            </div>
+        </form>
+    </div>
+
+    <footer class="footer mt-5 py-3 bg-dark text-muted border-top border-secondary-subtle">
+        <div class="container text-center">
+            <span>Copyright © 2025 <a href="https://compassvpn.org/" target="_blank">CompassVPN</a>. All rights reserved.</span>
+        </div>
+    </footer>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.5/dist/js/bootstrap.bundle.min.js" integrity="sha384-k6d4wzSIapyDyv1kpU366/PK5hCdSbCRGRCMv+eplOQJWyd1fbcAu9OCUj5zNLiq" crossorigin="anonymous"></script>
+    <script src="{{ url_for('static', filename='script.js') }}"></script>
+</body>
+</html> 

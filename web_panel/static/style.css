@@ -1,0 +1,87 @@
+/* CompassVPN Web Panel CSS */
+
+body {
+    padding-top: 20px;
+    padding-bottom: 60px;
+}
+
+.container {
+    max-width: 900px;
+}
+
+.form-label {
+    font-weight: bold;
+}
+
+.form-text {
+    font-size: 0.875em;
+    color: #adb5bd;
+    margin-top: 0.25rem;
+}
+
+.alert {
+    margin-top: 15px;
+}
+
+.form-check-group {
+    margin-bottom: 0.5rem;
+}
+
+.form-check-label {
+    margin-left: 0.5rem;
+}
+
+.metric-fields {
+    display: none;
+}
+
+/* Hide custom DNS text input initially */
+.custom-dns-text-input {
+    display: none;
+}
+
+.card-header {
+    background-color: rgb(139, 92, 246, 0.25);
+    border-bottom: none;
+}
+
+.card-header h4 {
+    font-size: 1.2rem;
+    font-weight: 500;
+    color: white;
+}
+
+.form-control::placeholder {
+  color: gray; 
+  opacity: 0.5;
+}
+
+.form-switch .form-check-input:checked {
+    background-color: rgb(139, 92, 246);
+    border-color: rgb(139, 92, 246);
+}
+
+.form-switch .form-check-input:focus {
+    border-color: rgba(139, 92, 246, 0.5);
+    box-shadow: 0 0 0 0.25rem rgba(139, 92, 246, 0.5);
+}
+
+a {
+    color: rgb(139, 92, 246);
+    text-decoration: none;
+}
+
+a:hover {
+    color: rgb(160, 120, 250);
+    text-decoration: underline;
+}
+
+.form-check-input:checked {
+    background-color: rgb(139, 92, 246);
+    border-color: rgb(139, 92, 246);
+}
+
+.form-check-input:focus {
+    border-color: rgba(139, 92, 246, 0.5);
+    box-shadow: 0 0 0 0.25rem rgba(139, 92, 246, 0.5);
+}
