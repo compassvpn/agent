@@ -16,11 +16,9 @@ setup_firewall() {
     fi
 
     echo "Checking UFW status and attempting to allow port $PANEL_PORT/tcp..."
-    # Try adding the rule
     sudo ufw allow "$PANEL_PORT"/tcp comment "Allow Web Panel"
     if [ $? -ne 0 ]; then
         echo "Warning: Failed to add UFW rule for port $PANEL_PORT/tcp." >&2
-        echo "Please ensure UFW is active and you have sudo permissions." >&2
     else
         echo "UFW rule added or already exists for port $PANEL_PORT/tcp."
     fi
@@ -31,24 +29,16 @@ cleanup_firewall() {
     if ! command_exists ufw || ! command_exists sudo; then
         return
     fi
-
-    echo "Attempting to remove UFW rule: allow $PANEL_PORT/tcp comment 'Allow Web Panel'"
+    echo "Attempting to remove UFW rule for port $PANEL_PORT/tcp..."
+    # We run delete twice because UFW often creates separate v4 and v6 rules with the same comment
     sudo ufw delete allow "$PANEL_PORT"/tcp comment "Allow Web Panel" >/dev/null 2>&1
-    # We run delete twice because UFW often creates separate v4 and v6 rules
     sudo ufw delete allow "$PANEL_PORT"/tcp comment "Allow Web Panel" >/dev/null 2>&1
-    # Check status *after* attempting deletion (less reliable but provides feedback)
-    if sudo ufw status | grep -q "$PANEL_PORT/tcp.*ALLOW.*Anywhere.*Allow Web Panel"; then 
-        echo "Warning: Failed to delete UFW rule for $PANEL_PORT/tcp (or it was already gone). Manual check recommended." >&2
-    else
-        echo "UFW rule for $PANEL_PORT/tcp likely removed."
-    fi
     echo "Firewall cleanup attempted."
 }
 
 # --- Setup Trap for Cleanup --- 
 # Ensure cleanup_firewall is called when script exits (normally or via interrupt)
 trap cleanup_firewall EXIT SIGINT SIGTERM
-
 
 # --- Check/Create env_file --- 
 if [ ! -f "$ENV_FILE" ]; then
@@ -61,11 +51,9 @@ if [ ! -f "$ENV_FILE" ]; then
 fi
 
 # --- Set Permissions --- 
-# Ensure owner has read/write permissions
 chmod 600 "$ENV_FILE"
 if [ $? -ne 0 ]; then
-  echo "Warning: Failed to set permissions (600) on $ENV_FILE. The panel might not be able to save changes." >&2
-  # Continue execution, but warn the user
+  echo "Warning: Failed to set permissions (600) on $ENV_FILE." >&2
 fi
 
 # --- Setup Firewall --- 
@@ -87,16 +75,22 @@ else
     echo "python3-flask is already installed."
 fi
 
-# Navigate to the script directory
+# Navigate to the script directory (where start_panel.sh is)
 cd "$(dirname "$0")"
-
-# Define the port and PID file
-PORT=5001
 
 # --- Run the Flask app --- 
 echo "Starting the web panel on port $PANEL_PORT... Press Ctrl+C to stop."
-python3 web_panel/app.py
-FLASK_EXIT_CODE=$?
+# Check if web_panel directory exists
+if [ -d "web_panel" ]; then
+    # Run Flask app from within its directory
+    cd web_panel || exit 1 # Exit if cd fails
+    python3 app.py
+    FLASK_EXIT_CODE=$?
+    cd .. # Go back to the original directory
+else
+    echo "Error: Directory 'web_panel' not found." >&2
+    exit 1
+fi
 
 # --- Exit --- 
 # The cleanup_firewall function is automatically called by the trap on EXIT
