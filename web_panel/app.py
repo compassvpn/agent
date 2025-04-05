@@ -379,16 +379,15 @@ def index() -> Union[str, Response]:
                     except Exception as chmod_err:
                         print(f"Warning: Could not chmod script {full_script_path}: {chmod_err}")
 
-                    # Run the script, detached, but capture output temporarily for debugging
-                    # Set working directory to the script's directory (parent of web_panel)
-                    script_dir = os.path.dirname(full_script_path)
-                    print(f"Running subprocess in directory: {script_dir}")
+                    # Run the script, detached, output redirected
+                    script_dir = os.path.dirname(full_script_path) # Keep for potential future use
+                    # print(f"Running subprocess in directory: {script_dir}")
                     subprocess.Popen(
                         [full_script_path],
                         start_new_session=True,
-                        cwd=script_dir  # Set working directory
-                        # stdout=subprocess.DEVNULL, # Temporarily removed for debugging
-                        # stderr=subprocess.DEVNULL  # Temporarily removed for debugging
+                        # cwd=script_dir
+                        stdout=subprocess.DEVNULL,
+                        stderr=subprocess.DEVNULL
                     )
                     flash(f'Successfully initiated: {script_basename}', 'info')
                     script_message = f'Successfully initiated <strong>{script_basename}</strong>.'
