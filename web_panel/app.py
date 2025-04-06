@@ -238,7 +238,6 @@ def write_env_file(file_path: str, env_data: Dict[str, Any]) -> None:
 
     lines_to_write: List[str] = []
     schema_keys = {item['name'] for item in CONFIG_SCHEMA}
-    schema_comments = {item['name']: item.get('comment', '') for item in CONFIG_SCHEMA}
     all_keys_in_schema_order = [item['name'] for item in CONFIG_SCHEMA]
 
     # Write schema-defined variables first
@@ -246,27 +245,25 @@ def write_env_file(file_path: str, env_data: Dict[str, Any]) -> None:
         schema_item = next((item for item in CONFIG_SCHEMA if item['name'] == key), None)
         if not schema_item: continue
 
-        comment = schema_comments.get(key)
-        if comment:
-            lines_to_write.append(f"# {comment}\n")
-
         value = env_data.get(key, schema_item.get('default', ''))
 
         if isinstance(value, list):
             value = ','.join(value)
 
         value_str = str(value).strip().replace('\n', ' ').replace('\r', '')
-        lines_to_write.append(f"{key}={value_str}\n\n")
-
+        lines_to_write.append(f"{key}={value_str}\n")
     # Append non-schema variables from the original file
-    preserved_variables = False
+    header_added = False
     for key, value in original_config.items():
         if key not in schema_keys:
-            if not preserved_variables:
-                lines_to_write.append("\n# --- Non-Schema Variables (Preserved) ---\n")
-                preserved_variables = True
-            lines_to_write.append(f"# Preserving non-schema variable\n")
-            lines_to_write.append(f"{key}={value}\n\n")
+            if not header_added:
+                lines_to_write.append("\n")
+                header_added = True
+            lines_to_write.append(f"{key}={value}\n")
+
+    # Add a final newline for POSIX compatibility / cleaner diffs
+    if lines_to_write:
+        lines_to_write.append("\n")
 
     try:
         with open(file_path, 'w', newline='', encoding='utf-8') as f:
@@ -381,12 +378,11 @@ def index() -> Union[str, Response]:
                         print(f"Warning: Could not chmod script {full_script_path}: {chmod_err}")
 
                     # Run the script, detached, output redirected
-                    script_dir = os.path.dirname(full_script_path) # Keep for potential future use
-                    # print(f"Running subprocess in directory: {script_dir}")
+                    script_dir = os.path.dirname(full_script_path)
+                    print(f"Running subprocess in directory: {script_dir}")
                     subprocess.Popen(
                         [full_script_path],
-                        start_new_session=True,
-                        # cwd=script_dir
+                        cwd=script_dir,
                         stdout=subprocess.DEVNULL,
                         stderr=subprocess.DEVNULL
                     )
