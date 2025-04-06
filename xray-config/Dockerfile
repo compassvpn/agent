@@ -9,7 +9,7 @@ RUN pip3 install --break-system-packages -r requirements.txt
 COPY --from=xray-image /usr/bin/xray /usr/bin/xray
 
 RUN arch=$(uname -m) && arch_name=$( [ "$arch" = "x86_64" ] && echo "64" ) || ( [ "$arch" = "aarch64" ] && echo "arm64-v8a" ) && \
-    wget -O knife.zip https://github.com/lilendian0x00/xray-knife/releases/download/v3.20.41/Xray-knife-linux-$arch_name.zip && \
+    wget -O knife.zip https://github.com/lilendian0x00/xray-knife/releases/download/v3.20.45/Xray-knife-linux-$arch_name.zip && \
     unzip knife.zip && mv ./xray-knife /usr/bin/
 
 RUN apk add curl openssl wireguard-tools-wg-quick
