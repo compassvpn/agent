@@ -74,7 +74,7 @@ def background_job():
             continue
         print("start xray testing...", flush=True)
         exec(["xray-knife", "net", "http", "--thread", "1", "-d", "30000", "-r",
-              "e", "-p", "-a", "1000", "-f", "configs.csv", "--type", "csv"])
+              "-e", "-p", "-a", "1000", "-f", "configs.csv", "--type", "csv"])
         # exec(["cat", "valid.csv"])
         valid_configs = csv_to_dict("valid.csv")
 
