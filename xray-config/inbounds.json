@@ -121,7 +121,7 @@
   },
   {
       "name": "vless-xhttp-quic-direct",
-      "link": "vless://$config_id@$direct_subdomain:8443?type=xhttp&mode=auto&path=%2F$nginx_path&security=tls&fp=randomized&alpn=h3%2Ch2&sni=$direct_subdomain#vless-xhttp-quic-direct",
+      "link": "vless://$config_id@$direct_subdomain:8443?type=xhttp&mode=auto&path=%2F$nginx_path&security=tls&fp=randomized&alpn=h3&sni=$direct_subdomain#vless-xhttp-quic-direct",
       "cloudflare": false,
       "inbound": {
         "tag": "vless-xhttp-quic-direct",
@@ -154,7 +154,7 @@
     },
     {
       "name": "vless-xhttp-quic-cdn",
-      "link": "vless://$config_id@$cf_clean_ip_domain:8443?type=xhttp&mode=auto&path=%2F$nginx_path%2Fcdn&security=tls&fp=randomized&alpn=h3%2Ch2&sni=$subdomain#vless-xhttp-quic-cdn",
+      "link": "vless://$config_id@$cf_clean_ip_domain:8443?type=xhttp&mode=auto&path=%2F$nginx_path%2Fcdn&security=tls&fp=randomized&alpn=h3&sni=$subdomain#vless-xhttp-quic-cdn",
       "cloudflare": true,
       "inbound": {
         "tag": "vless-xhttp-quic-cdn",
