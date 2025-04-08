@@ -395,11 +395,11 @@ def index() -> Union[str, Response]:
                     # Run the script, detached, output redirected
                     script_dir = os.path.dirname(full_script_path)
                     print(f"Running subprocess in directory: {script_dir}")
-                    subprocess.Popen(
+                    # Use subprocess.run to wait and show output in terminal
+                    subprocess.run(
                         [full_script_path],
                         cwd=script_dir,
-                        stdout=subprocess.DEVNULL,
-                        stderr=subprocess.DEVNULL
+                        check=False # Don't raise exception if script fails, just print output
                     )
                     flash(f'Successfully initiated: {script_basename}', 'info')
                     script_message = f'Successfully initiated <strong>{script_basename}</strong>.'

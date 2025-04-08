@@ -20,6 +20,9 @@ command_exists() {
     command -v "$1" >/dev/null 2>&1
 }
 
+# Variable to track OpenVZ detection
+IS_OPENVZ=0
+
 # Check Root Function
 check_root() {
     if [[ "$EUID" -ne 0 ]]; then
@@ -38,6 +41,19 @@ check_system() {
     if ! grep -qi "ubuntu\|debian" /etc/os-release; then
         echo "Error: This script is only supported on Debian/Ubuntu systems."
         exit 1
+    fi
+}
+
+# Check for OpenVZ virtualization
+check_openvz() {
+    if [ -f /proc/user_beancounters ]; then
+        IS_OPENVZ=1
+        echo "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
+        echo "WARNING: OPENVZ DETECTED. THIS VIRTUALIZATION HAS KNOWN LIMITATIONS."
+        echo "COMPASSVPN MAY NOT FUNCTION CORRECTLY."
+        echo "IT IS RECOMMENDED TO USE OTHER DATACENTERS."
+        echo "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
+        sleep 3
     fi
 }
 
@@ -104,6 +120,14 @@ set_timezone() {
     echo "Timezone set to UTC."
 }
 
+# Install necessary packages including curl
+install_base_packages() {
+    echo "Installing base packages..."
+    apt-get update -qq
+    apt-get install -yqq curl wget sudo coreutils iproute2 lsof
+    echo "Base packages installed."
+}
+
 # Update & Upgrade & Remove & Clean
 complete_update() {
     echo 'Updating the System... (This can take a while.)'
@@ -118,6 +142,11 @@ complete_update() {
 
 # SYSCTL Optimization
 sysctl_optimizations() {
+    if [ "$IS_OPENVZ" -eq 1 ]; then
+        echo "Skipping sysctl optimizations due to OpenVZ detection."
+        return 0
+    fi
+
     if [ ! -f "$SYS_PATH" ]; then
         echo "Error: sysctl.conf file not found at $SYS_PATH."
         return 1
@@ -321,6 +350,45 @@ process_fail2ban_filter() {
     sed -i "s|NGINX_PATH|$nginx_path|g" "$filter_file"
 }
 
+# Check if required ports are in use
+check_required_ports() {
+    local ports_to_check=("80" "443" "2053" "8443")
+    local conflict_found=0
+
+    echo "Checking required ports: ${ports_to_check[*]}..."
+
+    for port in "${ports_to_check[@]}"; do
+        echo "Checking if port $port is in use..."
+        # Use ss to check for listening sockets on the current TCP port
+        local listening_process
+        listening_process=$(ss -tlpn "sport = :$port" | grep LISTEN || true)
+
+        if [ -n "$listening_process" ]; then
+            conflict_found=1
+            echo "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
+            echo "!! ERROR: Port $port is already in use by the following process: "
+            # Attempt to extract process information more reliably
+            local pid
+            pid=$(echo "$listening_process" | grep -oP 'pid=\K\d+')
+            if [ -n "$pid" ]; then
+                local process_name
+                process_name=$(ps -p "$pid" -o comm=)
+                echo "!! PID: $pid, Name: $process_name "
+            else
+                 # Fallback to showing the ss output if PID extraction fails
+                echo "!! $listening_process "
+            fi
+            echo "!! Please stop this process manually before running the script again. "
+            echo "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
+            exit 1
+        fi
+    done
+
+    if [ "$conflict_found" -eq 0 ]; then
+        echo "All required ports (${ports_to_check[*]}) are free."
+    fi
+}
+
 # Main execution
 echo
 echo "Preparing the VM..."
@@ -330,6 +398,15 @@ check_root
 sleep 0.5
 
 check_system
+sleep 0.5
+
+install_base_packages
+sleep 0.5
+
+check_openvz
+sleep 0.5
+
+check_required_ports
 sleep 0.5
 
 fix_etc_hosts
@@ -344,6 +421,7 @@ sleep 0.5
 complete_update
 sleep 0.5
 
+# Conditionally run sysctl optimizations
 sysctl_optimizations
 sleep 0.5
 
