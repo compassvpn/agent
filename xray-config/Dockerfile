@@ -8,21 +8,31 @@ RUN pip3 install --break-system-packages -r requirements.txt
 
 COPY --from=xray-image /usr/bin/xray /usr/bin/xray
 
-RUN arch=$(uname -m) && \\
-    case "$arch" in \\
-        x86_64)  arch_name="64" ;; \\
-        aarch64) arch_name="arm64-v8a" ;; \\
-        *)       echo "Unsupported architecture: $arch" >&2; exit 1 ;; \\
-    esac && \\
-    wget -L -O knife.zip https://github.com/lilendian0x00/xray-knife/releases/download/v3.20.45/Xray-knife-linux-$arch_name.zip && \\
-    unzip knife.zip && mv ./xray-knife /usr/bin/
-
-RUN apk add curl openssl wireguard-tools-wg-quick
+RUN apk add --no-cache --virtual .build-deps wget unzip && \
+    apk add --no-cache curl openssl wireguard-tools-wg-quick && \
+    \
+    # Detect architecture and download/install xray-knife
+    ARCH=$(uname -m) && \
+    if [ "$ARCH" = "x86_64" ]; then \
+        arch_name="64"; \
+    elif [ "$ARCH" = "aarch64" ]; then \
+        arch_name="arm64-v8a"; \
+    else \
+        echo "Unsupported architecture: $ARCH" >&2; \
+        exit 1; \
+    fi && \
+    wget -L -O knife.zip "https://github.com/lilendian0x00/xray-knife/releases/download/v3.20.45/Xray-knife-linux-${arch_name}.zip" && \
+    unzip knife.zip && \
+    mv ./xray-knife /usr/bin/ && \
+    rm knife.zip && \
+    \
+    # Install acme.sh
+    curl https://get.acme.sh | sh && \
+    \
+    # Clean up build dependencies
+    apk del .build-deps
 
 WORKDIR /root
-
-# install acme.sh for creating SSL certificate
-RUN curl https://get.acme.sh | sh
 
 COPY utils.py utils.py
 COPY config.py config.py
