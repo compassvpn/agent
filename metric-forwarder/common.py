@@ -15,6 +15,30 @@ if not remote_write_url.endswith("/push"):
 
 # Convert to YAML and save to file
 def generate_config():
+    if os.environ['METRIC_PUSH_METHOD'] == "grafana_agent":
+        remote_write_item = {
+            "url": os.environ['GRAFANA_AGENT_REMOTE_WRITE_URL'],
+            "basic_auth": {
+              "username": os.environ['GRAFANA_AGENT_REMOTE_WRITE_USER'],
+              "password": os.environ['GRAFANA_AGENT_REMOTE_WRITE_PASSWORD']
+            }
+          }
+    else:
+        # pushgateway
+        remote_write_item = {
+            "url": os.environ['PUSHGATEWAY_URL']
+        }
+        if os.environ.get('PUSHGATEWAY_AUTH_TOKEN', "") != "":
+            remote_write_item["authorization"] = {
+                "type": "Bearer",
+                "credentials": os.environ["PUSHGATEWAY_AUTH_TOKEN"]
+            }
+        else:
+            remote_write_item["basic_auth"] = {
+              "username": os.environ['PUSHGATEWAY_AUTH_USER'],
+              "password": os.environ['PUSHGATEWAY_AUTH_PASSWORD']
+            }
+    
     config = {
       "server": {
         "log_level": "warn"
@@ -28,17 +52,7 @@ def generate_config():
           {
             "name": "default",
             "remote_write": [
-              {
-                "url": remote_write_url,
-                "authorization": {
-                    "type": "Bearer",
-                    "credentials": os.environ["GRAFANA_AGENT_REMOTE_WRITE_TOKEN"]
-                },
-                #"basic_auth": {
-                #  "username": os.environ['GRAFANA_AGENT_REMOTE_WRITE_USER'],
-                #  "password": os.environ['GRAFANA_AGENT_REMOTE_WRITE_PASSWORD']
-                #}
-              }
+              remote_write_item
             ],
             "scrape_configs": [
                 {
