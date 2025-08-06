@@ -9,15 +9,14 @@ instance_ip = instance_location_info['ip']
 
 DONOR = os.environ['DONOR']
 
-remote_write_url = os.environ['GRAFANA_AGENT_REMOTE_WRITE_URL']
-if not remote_write_url.endswith("/push"):
-    remote_write_url += "/push"
-
 # Convert to YAML and save to file
 def generate_config():
     if os.environ['METRIC_PUSH_METHOD'] == "grafana_agent":
+        remote_write_url = os.environ['GRAFANA_AGENT_REMOTE_WRITE_URL']
+        if not remote_write_url.endswith("/push"):
+            remote_write_url += "/push"
         remote_write_item = {
-            "url": os.environ['GRAFANA_AGENT_REMOTE_WRITE_URL'],
+            "url": remote_write_url,
             "basic_auth": {
               "username": os.environ['GRAFANA_AGENT_REMOTE_WRITE_USER'],
               "password": os.environ['GRAFANA_AGENT_REMOTE_WRITE_PASSWORD']
