@@ -84,7 +84,7 @@ services:
         max-file: "1"
 
   metric-forwarder:
-    image: mahsanet/compassvpn-agent-metric-forwarder:2
+    image: mahsanet/compassvpn-agent-metric-forwarder:3
     restart: always
     env_file:
       - env_file
