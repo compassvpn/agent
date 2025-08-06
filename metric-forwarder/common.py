@@ -30,10 +30,14 @@ def generate_config():
             "remote_write": [
               {
                 "url": remote_write_url,
-                "basic_auth": {
-                  "username": os.environ['GRAFANA_AGENT_REMOTE_WRITE_USER'],
-                  "password": os.environ['GRAFANA_AGENT_REMOTE_WRITE_PASSWORD']
-                }
+                "authorization": {
+                    "type": "Bearer",
+                    "credentials": os.environ["GRAFANA_AGENT_REMOTE_WRITE_TOKEN"]
+                },
+                #"basic_auth": {
+                #  "username": os.environ['GRAFANA_AGENT_REMOTE_WRITE_USER'],
+                #  "password": os.environ['GRAFANA_AGENT_REMOTE_WRITE_PASSWORD']
+                #}
               }
             ],
             "scrape_configs": [
