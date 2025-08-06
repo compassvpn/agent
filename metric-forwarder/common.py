@@ -45,7 +45,7 @@ def generate_config():
       "metrics": {
         "wal_directory": "/tmp/grafana-agent-wal",
         "global": {
-          "scrape_interval": "5m"
+          "scrape_interval": os.environ['METRIC_INTERVAL']
         },
         "configs": [
           {
