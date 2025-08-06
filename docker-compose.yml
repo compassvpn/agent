@@ -125,7 +125,7 @@ services:
         max-file: "1"
 
   fail2ban:
-    image: image: mahsanet/compassvpn-agent-fail2ban:1
+    image: mahsanet/compassvpn-agent-fail2ban:1
     restart: always
     network_mode: host
     environment:
