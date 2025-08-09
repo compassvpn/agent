@@ -1,7 +1,7 @@
 services:
 
   xray-config:
-    image: mahsanet/compassvpn-agent-xray-config:1
+    image: compassvpn/xray-config:1
     restart: always
     env_file:
       - env_file
@@ -17,7 +17,7 @@ services:
         max-file: "1"
 
   xray:
-    image: mahsanet/compassvpn-agent-xray:1
+    image: compassvpn/xray:1
     volumes:
       - "/var/log:/var/log"
     cap_add:
@@ -41,7 +41,7 @@ services:
       - "443:443/udp"
 
   nginx:
-    image: mahsanet/compassvpn-agent-nginx:1
+    image: compassvpn/nginx:1
     volumes:
       - "acme:/root/.acme.sh/"
       - "/var/log:/var/log"
@@ -67,7 +67,7 @@ services:
         max-file: "1"
 
   xray-exporter:
-    image: mahsanet/compassvpn-agent-xray-exporter:1
+    image: compassvpn/xray-exporter:1
     restart: always
     depends_on:
       - xray
@@ -84,7 +84,7 @@ services:
         max-file: "1"
 
   metric-forwarder:
-    image: mahsanet/compassvpn-agent-metric-forwarder:3
+    image: compassvpn/metric-forwarder:1
     restart: always
     env_file:
       - env_file
@@ -128,7 +128,7 @@ services:
         max-file: "1"
 
   fail2ban:
-    image: mahsanet/compassvpn-agent-fail2ban:1
+    image: compassvpn/fail2ban:1
     restart: always
     network_mode: host
     environment:
