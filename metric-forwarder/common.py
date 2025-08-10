@@ -1,5 +1,4 @@
 import os
-import json
 import yaml
 from utils import get_public_ip
 
@@ -7,11 +6,13 @@ instance_location_info = get_public_ip(extra=True)
 
 instance_ip = instance_location_info['ip']
 
+METRIC_PUSH_METHOD = os.environ.get('METRIC_PUSH_METHOD', 'pushgateway')
+
 DONOR = os.environ['DONOR']
 
 # Convert to YAML and save to file
 def generate_config():
-    if os.environ['METRIC_PUSH_METHOD'] == "grafana_agent":
+    if METRIC_PUSH_METHOD == "grafana_agent":
         remote_write_url = os.environ['GRAFANA_AGENT_REMOTE_WRITE_URL']
         if not remote_write_url.endswith("/push"):
             remote_write_url += "/push"

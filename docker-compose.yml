@@ -10,6 +10,8 @@ services:
     volumes:
       - "/etc/machine-id:/host/etc/machine-id"
       - "acme:/root/.acme.sh/"
+    ports:
+      - "5000:5000"
     logging:
       driver: "json-file"
       options:
@@ -84,7 +86,7 @@ services:
         max-file: "1"
 
   metric-forwarder:
-    image: compassvpn/metric-forwarder:1
+    image: compassvpn/metric-forwarder:3
     restart: always
     env_file:
       - env_file
