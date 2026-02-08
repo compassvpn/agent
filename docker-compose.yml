@@ -79,13 +79,10 @@ services:
     env_file:
       - env_file
     ports:
-      - "80:80/tcp"
       - "8880:8880/tcp"
       - "8880:8880/udp"
       - "2053:2053/tcp"
       - "2053:2053/udp"
-      - "2083:2083/tcp"
-      - "2083:2083/udp"
       - "8443:8443/tcp"
       - "8443:8443/udp"
     environment:

@@ -73,7 +73,12 @@ except Exception as e:
     ]
     cdn_options = [
         {"name": n, "label": n}
-        for n in ["vmess-ws-cdn", "vless-hu-tls-cdn", "vless-xhttp-quic-cdn", "vless-xhttp-cdn"]
+        for n in [
+            "vmess-ws-cdn",
+            "vless-hu-tls-cdn",
+            "vless-xhttp-quic-cdn",
+            "vless-xhttp-cdn",
+        ]
     ]
     xray_inbounds_default = [
         "vmess-ws-cdn",
@@ -291,6 +296,12 @@ def index() -> Any:
         submitted_data = request.form.to_dict(flat=False)
         action = submitted_data.pop("action", [None])[0]
         env_to_save = current_config.copy()
+        errors = []
+
+        # Validate XRAY_INBOUNDS
+        selected_inbounds = submitted_data.get("XRAY_INBOUNDS", [])
+        if not selected_inbounds:
+            errors.append("At least one Xray inbound must be enabled.")
 
         for key, values in submitted_data.items():
             if not values:
@@ -300,6 +311,19 @@ def index() -> Any:
             )
             if not schema_item:
                 continue
+
+            value = values[0].strip()
+
+            # Specific validation for NGINX_PATH
+            if key == "NGINX_PATH":
+                value = value.strip("/")
+                if not value.isalnum() and "_" not in value and "-" not in value:
+                    errors.append(
+                        "NGINX Path must be alphanumeric (dashes/underscores allowed)."
+                    )
+                env_to_save[key] = value
+                continue
+
             if schema_item["type"] == "checkbox_group":
                 if not isinstance(values, list):
                     values = [values]
@@ -321,7 +345,13 @@ def index() -> Any:
             elif key in ["CUSTOM_DNS_TEXT", "REDEPLOY_INTERVAL_custom"]:
                 continue
             else:
-                env_to_save[key] = values[0]
+                env_to_save[key] = value
+
+        if errors:
+            for err in errors:
+                log.warning(f"Validation failed: {err}", hypothesisId="WEB")
+                flash(err, "danger")
+            return redirect(url_for("index"))
 
         write_env(env_to_save, CONFIG_SCHEMA, str(ENV_FILE))
 
@@ -348,18 +378,27 @@ def index() -> Any:
                 try:
                     os.chmod(full_script_path, 0o755)
                     script_dir = os.path.dirname(full_script_path)
+                    log.info(
+                        f"Initiating script: {script_basename}",
+                        hypothesisId="WEB",
+                        path=full_script_path,
+                    )
                     exec_command([full_script_path], cwd=script_dir)
                     flash(f"Successfully initiated: {script_basename}", "info")
                     script_message = (
                         f"Successfully initiated <strong>{script_basename}</strong>."
                     )
                 except Exception as e:
+                    log.error(
+                        f"Error running {script_basename}: {e}", hypothesisId="WEB"
+                    )
                     flash(f"Error trying to run {script_basename}: {e}", "danger")
                     script_message = (
                         f"Error trying to run <strong>{script_basename}</strong>: {e}"
                     )
             else:
                 error_msg = f"Script not found: {full_script_path}"
+                log.error(error_msg, hypothesisId="WEB")
                 flash(error_msg, "danger")
                 script_message = error_msg
 

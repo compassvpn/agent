@@ -27,6 +27,11 @@ class XrayService:
     def _setup_routes(self) -> None:
         @self.app.route("/config")
         def get_xray_config():
+            if not config.initialized:
+                log.info(
+                    "Xray Config requested but not yet initialized", hypothesisId="XRAY"
+                )
+                return "Xray Config is not ready yet.", 503
             return json.dumps(config.xray_config, indent=4)
 
         @self.app.route("/valid-configs")
@@ -36,6 +41,7 @@ class XrayService:
         @self.app.route("/subdomain")
         def export_certs():
             if not config.direct_subdomain:
+                log.info("Subdomain requested but not yet ready", hypothesisId="XRAY")
                 return "Not Ready", 503
             return config.direct_subdomain
 

@@ -232,7 +232,9 @@ class XrayConfig:
                         )
                     else:
                         log.debug("Cert missing, issuing", hypothesisId="CERT")
-                        if run_acme(f"{ssl_provider_server} --register-account -m my@email.com"):
+                        if run_acme(
+                            f"{ssl_provider_server} --register-account -m my@email.com"
+                        ):
                             run_acme(
                                 f"{ssl_provider_server} --issue --dns dns_cf -d {self.direct_subdomain}"
                             )

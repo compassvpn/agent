@@ -20,8 +20,7 @@ banaction = iptables-multiport
 #mta = sendmail
 
 # Ports to ban in the DEFAULT section (for all jails)
-# SSH and nginx ports
-port = ssh,2222,80,8080,2053,8443
+port = ssh,2222,443,2053,8080,8443,8880
 
 # Action (iptables only, no email)
 action = %(banaction)s[name=%(__name__)s, port="%(port)s", protocol="%(protocol)s", chain="DOCKER-USER"] 
