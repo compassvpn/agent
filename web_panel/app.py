@@ -73,7 +73,12 @@ except Exception as e:
     ]
     cdn_options = [
         {"name": n, "label": n}
-        for n in ["vmess-ws-cdn", "vless-hu-tls-cdn", "vless-xhttp-quic-cdn", "vless-xhttp-cdn"]
+        for n in [
+            "vmess-ws-cdn",
+            "vless-hu-tls-cdn",
+            "vless-xhttp-quic-cdn",
+            "vless-xhttp-cdn",
+        ]
     ]
     xray_inbounds_default = [
         "vmess-ws-cdn",

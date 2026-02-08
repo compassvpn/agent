@@ -2,3 +2,5 @@ env_file
 .git
 .env
 .idea
+.ruff_cache
+.github
