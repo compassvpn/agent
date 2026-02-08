@@ -1,12 +1,8 @@
 import json
-import os
 import threading
-import sys
 from typing import Dict, List, Optional, Union
 from flask import Flask, abort
 
-# Add root to sys.path
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 from config import config
 from shared_lib.system import exec_command, get_machine_id, csv_to_dict
 from shared_lib.logger import log

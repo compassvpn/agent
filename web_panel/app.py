@@ -1,12 +1,9 @@
 import os
 import signal
 import json
-import sys
 from typing import Dict, List, Any
 from flask import Flask, render_template, request, redirect, url_for, flash
 
-# Add root to sys.path to allow importing shared_lib
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 from shared_lib.paths import ENV_FILE, INBOUNDS_JSON, BOOTSTRAP_SCRIPT, RESTART_SCRIPT
 from shared_lib.config import load_env, write_env
 from shared_lib.system import exec_command

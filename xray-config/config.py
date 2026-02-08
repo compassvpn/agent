@@ -1,13 +1,9 @@
 import json
-import os
 import string
-import sys
 from time import sleep
 from typing import Any, Dict, List, Optional
 import requests
 
-# Add root to sys.path to allow importing shared_lib
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 from shared_lib.network import get_public_ip
 from shared_lib.xray import register_warp, generate_vmess_link
 from shared_lib.config import load_env, get_identifier
@@ -261,7 +257,6 @@ class XrayConfig:
                     try:
                         with open(cert_path, "r") as file:
                             self.cert_public = file.read()
-                            self.cert_public = json.dumps(self.cert_public)[1:-1]
                         with open(
                             ACME_SH_PATH
                             / f"{self.direct_subdomain}_ecc"
@@ -269,7 +264,6 @@ class XrayConfig:
                             "r",
                         ) as file:
                             self.cert_private = file.read()
-                            self.cert_private = json.dumps(self.cert_private)[1:-1]
                         log.debug("Certs loaded successfully", hypothesisId="CERT")
                     except Exception as e:
                         log.error(
@@ -289,22 +283,31 @@ class XrayConfig:
         self.cf_clean_ip_domain = self.env_config.get("CF_CLEAN_IP_DOMAIN", "npmjs.com")
 
         # Process Inbounds Template
+        def substitute_vars(data: Any, mapping: Dict[str, Any]) -> Any:
+            """Recursively substitute variables in strings within a nested data structure."""
+            if isinstance(data, dict):
+                return {k: substitute_vars(v, mapping) for k, v in data.items()}
+            elif isinstance(data, list):
+                return [substitute_vars(i, mapping) for i in data]
+            elif isinstance(data, str):
+                return string.Template(data).safe_substitute(mapping)
+            return data
+
         with open(INBOUNDS_JSON) as f:
-            inbound_template = string.Template(f.read())
-            all_inbounds = json.loads(
-                inbound_template.substitute(
-                    {
-                        "config_id": self.config_id,
-                        "config_uuid": self.config_uuid,
-                        "cf_clean_ip_domain": self.cf_clean_ip_domain,
-                        "nginx_path": self.nginx_path,
-                        "server_ip": self.server_ip,
-                        "direct_subdomain": self.direct_subdomain or "",
-                        "subdomain": self.subdomain or "",
-                        "cert_public": self.cert_public or "",
-                        "cert_private": self.cert_private or "",
-                    }
-                )
+            raw_inbounds = json.load(f)
+            all_inbounds = substitute_vars(
+                raw_inbounds,
+                {
+                    "config_id": self.config_id,
+                    "config_uuid": self.config_uuid,
+                    "cf_clean_ip_domain": self.cf_clean_ip_domain,
+                    "nginx_path": self.nginx_path,
+                    "server_ip": self.server_ip,
+                    "direct_subdomain": self.direct_subdomain or "",
+                    "subdomain": self.subdomain or "",
+                    "cert_public": self.cert_public or "",
+                    "cert_private": self.cert_private or "",
+                },
             )
             self.configured_inbounds = [
                 inbound
@@ -425,7 +428,11 @@ class XrayConfig:
                 self.warps.append(register_warp())
                 self.warps_ready = True
             except Exception as e:
-                log.error("WARP registration failed during bootstrap", hypothesisId="WARP", error=str(e))
+                log.error(
+                    "WARP registration failed during bootstrap",
+                    hypothesisId="WARP",
+                    error=str(e),
+                )
                 return
 
             for i, warp in enumerate(self.warps):

@@ -1,8 +1,5 @@
 import os
-import sys
 
-# Add root to sys.path to allow importing shared_lib
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 from shared_lib.logger import log
 
 METRIC_PUSH_METHOD = os.environ.get("METRIC_PUSH_METHOD", "pushgateway")
