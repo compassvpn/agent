@@ -1,5 +1,4 @@
 import os
-import io
 from typing import Dict, Any, List, Optional
 from .paths import ENV_FILE
 
@@ -20,7 +19,7 @@ def load_env(
     # 2. Override with values from the env_file if it exists
     if os.path.exists(file_path):
         try:
-            with io.open(file_path, "r", encoding="utf-8") as f:
+            with open(file_path, "r", encoding="utf-8") as f:
                 for line in f:
                     stripped_line = line.strip()
                     if not stripped_line or stripped_line.startswith("#"):

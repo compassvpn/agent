@@ -71,9 +71,10 @@ class XrayConfig:
                 log.error(
                     f"Failed to retrieve domain name. Status code: {response.status_code}",
                     hypothesisId="DNS",
+                    body=response.text[:200],
                 )
         except Exception as e:
-            log.debug("get_domain error", hypothesisId="DNS", error=str(e))
+            log.error("get_domain error", hypothesisId="DNS", error=str(e))
 
     def _create_cf_records(self) -> Optional[str]:
         """Internal method to manage Cloudflare DNS records."""
@@ -96,7 +97,7 @@ class XrayConfig:
                     dns_records = response.json()["result"]
                     return bool(dns_records)
             except Exception as e:
-                log.debug(
+                log.error(
                     f"Check DNS error {record_name}", hypothesisId="DNS", error=str(e)
                 )
             return None
@@ -118,17 +119,24 @@ class XrayConfig:
             }
             try:
                 response = requests.post(endpoint, json=data, headers=headers)
-                log.debug(
-                    "Create DNS result",
-                    name=name,
-                    status=response.status_code,
-                    body=response.text[:200],
-                    hypothesisId="DNS",
-                )
                 if response.status_code == 200:
+                    log.debug(
+                        "Create DNS result",
+                        name=name,
+                        status=response.status_code,
+                        hypothesisId="DNS",
+                    )
                     return name
+                else:
+                    log.error(
+                        "Create DNS failed",
+                        name=name,
+                        status=response.status_code,
+                        body=response.text[:200],
+                        hypothesisId="DNS",
+                    )
             except Exception as e:
-                log.debug(f"Create DNS error {name}", hypothesisId="DNS", error=str(e))
+                log.error(f"Create DNS error {name}", hypothesisId="DNS", error=str(e))
             return None
 
         server_ip_str = str(self.server_ip)
@@ -235,9 +243,20 @@ class XrayConfig:
                         if run_acme(
                             f"{ssl_provider_server} --register-account -m my@email.com"
                         ):
-                            run_acme(
+                            if not run_acme(
                                 f"{ssl_provider_server} --issue --dns dns_cf -d {self.direct_subdomain}"
+                            ):
+                                log.error(
+                                    "Failed to issue SSL certificate during bootstrap",
+                                    hypothesisId="CERT",
+                                )
+                                return
+                        else:
+                            log.error(
+                                "Failed to register ACME account during bootstrap",
+                                hypothesisId="CERT",
                             )
+                            return
 
                     try:
                         with open(cert_path, "r") as file:
@@ -253,7 +272,12 @@ class XrayConfig:
                             self.cert_private = json.dumps(self.cert_private)[1:-1]
                         log.debug("Certs loaded successfully", hypothesisId="CERT")
                     except Exception as e:
-                        log.debug("Cert load error", hypothesisId="CERT", error=str(e))
+                        log.error(
+                            "Failed to load SSL certificates",
+                            hypothesisId="CERT",
+                            error=str(e),
+                        )
+                        return
             else:
                 log.debug("Domain not found, skipping records", hypothesisId="DNS")
         else:
@@ -392,13 +416,17 @@ class XrayConfig:
         self.warps_ready = False
         self.wg_configs = {}
         if self.env_config.get("XRAY_OUTBOUND") == "warp":
-            self.warps = []
-            self.warps.append(register_warp())
-            sleep(2)
-            self.warps.append(register_warp())
-            sleep(2)
-            self.warps.append(register_warp())
-            self.warps_ready = True
+            try:
+                self.warps = []
+                self.warps.append(register_warp())
+                sleep(2)
+                self.warps.append(register_warp())
+                sleep(2)
+                self.warps.append(register_warp())
+                self.warps_ready = True
+            except Exception as e:
+                log.error("WARP registration failed during bootstrap", hypothesisId="WARP", error=str(e))
+                return
 
             for i, warp in enumerate(self.warps):
                 addresses = (
@@ -417,19 +445,15 @@ AllowedIPs = 0.0.0.0/0, ::/0
 Endpoint = engage.cloudflareclient.com:2408
 """
 
+            inbound_tags = [
+                ib["inbound"]["tag"]
+                for ib in self.configured_inbounds
+                if "inbound" in ib and "tag" in ib["inbound"]
+            ]
             self.xray_config["routing"]["rules"].insert(
                 0,
                 {
-                    "inboundTag": [
-                        "vmess-ws-cdn",
-                        "vless-tcp-tls-direct",
-                        "vless-hu-tls-direct",
-                        "vless-hu-tls-cdn",
-                        "vless-xhttp-quic-direct",
-                        "vless-xhttp-quic-cdn",
-                        "vless-xhttp-direct",
-                        "vless-xhttp-cdn",
-                    ],
+                    "inboundTag": inbound_tags,
                     "balancerTag": "balancer1",
                 },
             )

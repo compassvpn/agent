@@ -1,6 +1,5 @@
 import os
 import subprocess
-import unicodedata
 from typing import List, Optional, Dict, Mapping
 
 from shared_lib.logger import log
@@ -85,13 +84,3 @@ def csv_to_dict(filename: str) -> Dict[str, List[str]]:
         except Exception as e:
             log.error(f"Error reading CSV {filename}: {e}", hypothesisId="SYS")
     return data
-
-
-def convert_to_ascii(text: str) -> str:
-    """Normalizes text to ASCII by removing non-ASCII characters."""
-    return "".join(
-        c
-        if ord(c) < 128
-        else unicodedata.normalize("NFKD", c).encode("ascii", "ignore").decode("ascii")
-        for c in text
-    )
