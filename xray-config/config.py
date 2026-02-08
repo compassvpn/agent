@@ -250,13 +250,13 @@ class XrayConfig:
                                     "Failed to issue SSL certificate during bootstrap",
                                     hypothesisId="CERT",
                                 )
-                                raise RuntimeError("Initial SSL issuance failed")
+                                return
                         else:
                             log.error(
                                 "Failed to register ACME account during bootstrap",
                                 hypothesisId="CERT",
                             )
-                            raise RuntimeError("ACME account registration failed")
+                            return
 
                     try:
                         with open(cert_path, "r") as file:
@@ -277,7 +277,7 @@ class XrayConfig:
                             hypothesisId="CERT",
                             error=str(e),
                         )
-                        raise RuntimeError(f"SSL cert load failed: {e}")
+                        return
             else:
                 log.debug("Domain not found, skipping records", hypothesisId="DNS")
         else:
@@ -416,13 +416,17 @@ class XrayConfig:
         self.warps_ready = False
         self.wg_configs = {}
         if self.env_config.get("XRAY_OUTBOUND") == "warp":
-            self.warps = []
-            self.warps.append(register_warp())
-            sleep(2)
-            self.warps.append(register_warp())
-            sleep(2)
-            self.warps.append(register_warp())
-            self.warps_ready = True
+            try:
+                self.warps = []
+                self.warps.append(register_warp())
+                sleep(2)
+                self.warps.append(register_warp())
+                sleep(2)
+                self.warps.append(register_warp())
+                self.warps_ready = True
+            except Exception as e:
+                log.error("WARP registration failed during bootstrap", hypothesisId="WARP", error=str(e))
+                return
 
             for i, warp in enumerate(self.warps):
                 addresses = (
