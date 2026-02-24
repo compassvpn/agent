@@ -148,6 +148,8 @@ net.ipv4.tcp_congestion_control = bbr
 net.ipv4.tcp_max_syn_backlog = 10240
 net.ipv4.tcp_fin_timeout = 25
 net.core.netdev_max_backlog = 32768
+net.netfilter.nf_conntrack_max = 1048576
+net.netfilter.nf_conntrack_buckets = 262144
 EOF
 
     # Apply settings
