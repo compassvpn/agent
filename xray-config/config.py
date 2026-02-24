@@ -229,49 +229,51 @@ class XrayConfig:
                     cert_path = (
                         ACME_SH_PATH / f"{self.direct_subdomain}_ecc" / "fullchain.cer"
                     )
+                    cert_ready = False
                     if cert_path.exists():
                         log.debug("Cert exists, renewing", hypothesisId="CERT")
                         run_acme(
                             f"{ssl_provider_server} --renew --dns dns_cf -d {self.direct_subdomain}"
                         )
+                        cert_ready = True
                     else:
                         log.debug("Cert missing, issuing", hypothesisId="CERT")
                         if run_acme(
                             f"{ssl_provider_server} --register-account -m my@email.com"
                         ):
-                            if not run_acme(
+                            if run_acme(
                                 f"{ssl_provider_server} --issue --dns dns_cf -d {self.direct_subdomain}"
                             ):
+                                cert_ready = True
+                            else:
                                 log.error(
-                                    "Failed to issue SSL certificate during bootstrap",
+                                    "Failed to issue SSL certificate; TLS inbounds will be skipped",
                                     hypothesisId="CERT",
                                 )
-                                return
                         else:
                             log.error(
-                                "Failed to register ACME account during bootstrap",
+                                "Failed to register ACME account; TLS inbounds will be skipped",
                                 hypothesisId="CERT",
                             )
-                            return
 
-                    try:
-                        with open(cert_path, "r") as file:
-                            self.cert_public = file.read()
-                        with open(
-                            ACME_SH_PATH
-                            / f"{self.direct_subdomain}_ecc"
-                            / f"{self.direct_subdomain}.key",
-                            "r",
-                        ) as file:
-                            self.cert_private = file.read()
-                        log.debug("Certs loaded successfully", hypothesisId="CERT")
-                    except Exception as e:
-                        log.error(
-                            "Failed to load SSL certificates",
-                            hypothesisId="CERT",
-                            error=str(e),
-                        )
-                        return
+                    if cert_ready:
+                        try:
+                            with open(cert_path, "r") as file:
+                                self.cert_public = file.read()
+                            with open(
+                                ACME_SH_PATH
+                                / f"{self.direct_subdomain}_ecc"
+                                / f"{self.direct_subdomain}.key",
+                                "r",
+                            ) as file:
+                                self.cert_private = file.read()
+                            log.debug("Certs loaded successfully", hypothesisId="CERT")
+                        except Exception as e:
+                            log.error(
+                                "Failed to load SSL certificates; TLS inbounds will be skipped",
+                                hypothesisId="CERT",
+                                error=str(e),
+                            )
             else:
                 log.debug("Domain not found, skipping records", hypothesisId="DNS")
         else:
@@ -317,6 +319,31 @@ class XrayConfig:
             for inbound in self.configured_inbounds:
                 if isinstance(inbound.get("link"), dict):
                     inbound["link"] = generate_vmess_link(inbound["link"])
+
+        # Drop any inbound whose TLS cert/key resolved to an empty string after
+        # variable substitution. An empty cert would make `xray -test` fail and
+        # bring down the whole container.
+        def _has_valid_tls(inbound_def: Dict[str, Any]) -> bool:
+            stream = inbound_def.get("inbound", {}).get("streamSettings", {})
+            if stream.get("security") != "tls":
+                return True
+            for cert_entry in stream.get("tlsSettings", {}).get("certificates", []):
+                cert_lines = cert_entry.get("certificate", [])
+                key_lines = cert_entry.get("key", [])
+                if not any(s.strip() for s in (cert_lines if isinstance(cert_lines, list) else [cert_lines])):
+                    return False
+                if not any(s.strip() for s in (key_lines if isinstance(key_lines, list) else [key_lines])):
+                    return False
+            return True
+
+        before = len(self.configured_inbounds)
+        self.configured_inbounds = [ib for ib in self.configured_inbounds if _has_valid_tls(ib)]
+        skipped = before - len(self.configured_inbounds)
+        if skipped:
+            log.warning(
+                f"Skipped {skipped} TLS inbound(s) with missing certificates",
+                hypothesisId="CFG",
+            )
 
         inbounds_list = [
             {
@@ -418,6 +445,7 @@ class XrayConfig:
         # WARP configuration
         self.warps_ready = False
         self.wg_configs = {}
+        warp_active = False
         if self.env_config.get("XRAY_OUTBOUND") == "warp":
             try:
                 self.warps = []
@@ -427,14 +455,15 @@ class XrayConfig:
                 sleep(2)
                 self.warps.append(register_warp())
                 self.warps_ready = True
+                warp_active = True
             except Exception as e:
                 log.error(
-                    "WARP registration failed during bootstrap",
+                    "WARP registration failed; falling back to direct outbound",
                     hypothesisId="WARP",
                     error=str(e),
                 )
-                return
 
+        if warp_active:
             for i, warp in enumerate(self.warps):
                 addresses = (
                     ", ".join(warp["addresses"]) if warp.get("addresses") else ""
@@ -506,11 +535,28 @@ Endpoint = engage.cloudflareclient.com:2408
             {"tag": "blocked", "protocol": "blackhole", "settings": {}}
         ]
 
+        active_inbound_count = len(
+            [ib for ib in self.configured_inbounds if "inbound" in ib]
+        )
+        if active_inbound_count == 0:
+            log.warning(
+                "No user-facing inbounds are active. "
+                "Clients will not be able to connect. "
+                "Check CF credentials, TLS cert availability, and XRAY_INBOUNDS.",
+                hypothesisId="CFG",
+            )
+        else:
+            log.info(
+                f"Initialized with {active_inbound_count} active inbound(s)",
+                hypothesisId="CFG",
+            )
+
         self.initialized = True
 
     def get_config_links(self) -> List[str]:
         """Return formatted config links for active inbounds."""
         configs: List[str] = []
+        # CF inbounds need a subdomain to form a valid link
         if self.subdomain:
             configs.extend(
                 [
@@ -519,14 +565,15 @@ Endpoint = engage.cloudflareclient.com:2408
                     if inbound.get("cloudflare", False)
                 ]
             )
-            configs.extend(
-                [
-                    inbound.get("link", "")
-                    for inbound in self.configured_inbounds
-                    if inbound.get("cloudflare", False) is False
-                ]
-            )
-        return configs
+        # Direct inbounds are always testable if they made it into configured_inbounds
+        configs.extend(
+            [
+                inbound.get("link", "")
+                for inbound in self.configured_inbounds
+                if inbound.get("cloudflare", False) is False
+            ]
+        )
+        return [link for link in configs if link]
 
 
 # Singleton instance for structured access
