@@ -1,5 +1,4 @@
 #!/bin/sh
 
 /usr/bin/killall xray
-
-echo $! > /run/xray.pid
+rm -f /run/xray.pid
