@@ -10,9 +10,6 @@ HOST_PATH="/etc/hosts"
 DNS_PATH="/etc/resolv.conf"
 PROF_PATH="/etc/profile"
 SSH_PATH="/etc/ssh/sshd_config"
-FAIL2BAN_JAIL_DIR="fail2ban/jail.d"
-FAIL2BAN_DATA_DIR="fail2ban/data"
-FAIL2BAN_SSHD_CONF="$FAIL2BAN_JAIL_DIR/sshd.conf"
 COMPASSVPN_LOG_PATH="/var/log/compassvpn/"
 
 # Check if a command exists
@@ -205,15 +202,6 @@ find_ssh_port() {
     fi
 }
 
-# Update fail2ban configuration for SSH
-update_fail2ban_ssh() {
-    if [ -f "$FAIL2BAN_SSHD_CONF" ]; then
-        # Replace the entire action line to ensure correct port and protocol
-        sed -i "s|^action = .*|action = iptables-multiport[name=sshd, port=\"$SSH_PORT\", protocol=tcp]|" "$FAIL2BAN_SSHD_CONF"
-        echo "Fail2ban configured for SSH port $SSH_PORT"
-    fi
-}
-
 # Optimize UFW configuration
 optimize_ufw() {
     if [ -f /etc/default/ufw ]; then
@@ -252,11 +240,6 @@ setup_compassvpn_logs() {
         echo "Creating log directory at $COMPASSVPN_LOG_PATH."
         mkdir -p "$COMPASSVPN_LOG_PATH"
     fi
-
-    # Create fail2ban data directory
-    mkdir -p "$FAIL2BAN_DATA_DIR"
-    chmod 750 "$FAIL2BAN_DATA_DIR"
-    chown root:root "$FAIL2BAN_DATA_DIR"
 
     # Set appropriate permissions (Prevent world-read/write)
     chmod 750 "$COMPASSVPN_LOG_PATH"
@@ -316,35 +299,6 @@ EOF
     echo "Logrotate configured."
 }
 
-# Process fail2ban filter with NGINX_PATH
-process_fail2ban_filter() {
-    local filter_file="fail2ban/filter.d/nginx-bad-request.conf"
-    local nginx_path
-    
-    if [ ! -f "$filter_file" ]; then
-        echo "Error: nginx-bad-request.conf not found."
-        return 1
-    fi
-    
-    # Extract NGINX_PATH from environment configuration
-    if [ -f "env_file" ]; then
-        nginx_path=$(grep -oP '^NGINX_PATH=\K.*' env_file)
-    else
-        echo "Error: env_file not found."
-        exit 1
-    fi
-    
-    if [ -z "$nginx_path" ]; then
-        echo "Warning: NGINX_PATH not found. Using default."
-        nginx_path="default"
-    fi
-    
-    echo "Setting NGINX_PATH to $nginx_path"
-    
-    # Update filter configuration with environment path
-    sed -i "s|NGINX_PATH|$nginx_path|g" "$filter_file"
-}
-
 # Check if required ports are in use
 check_required_ports() {
     local conflict_found=0
@@ -394,12 +348,10 @@ STEP_NAMES=(
     [handle_firewalld]="Removing conflicting firewalls"
     [install_ufw]="Installing UFW"
     [find_ssh_port]="Detecting SSH port"
-    [update_fail2ban_ssh]="Configuring Fail2ban for SSH"
     [optimize_ufw]="Optimizing UFW configuration"
     [configure_ufw]="Configuring firewall rules"
     [setup_compassvpn_logs]="Setting up log directories"
     [setup_logrotate_for_compassvpn]="Configuring log rotation"
-    [process_fail2ban_filter]="Configuring Fail2ban filters"
 )
 
 STEPS=(
@@ -415,12 +367,10 @@ STEPS=(
     handle_firewalld
     install_ufw
     find_ssh_port
-    update_fail2ban_ssh
     optimize_ufw
     configure_ufw
     setup_compassvpn_logs
     setup_logrotate_for_compassvpn
-    process_fail2ban_filter
 )
 
 # Execute the sequence with defined intervals
