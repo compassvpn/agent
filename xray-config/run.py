@@ -28,7 +28,9 @@ class XrayService:
                     "Xray Config requested but not yet initialized", hypothesisId="XRAY"
                 )
                 return "Not Ready", 503
-            return json.dumps(config.xray_config, indent=4)
+            # Strip top-level null keys; some Xray versions reject them
+            clean = {k: v for k, v in config.xray_config.items() if v is not None}
+            return json.dumps(clean, indent=4)
 
         @self.app.route("/valid-configs")
         def valid_configs_route():
@@ -211,7 +213,7 @@ class XrayService:
                 continue
 
             if config.cf_api_token and config.direct_subdomain:
-                exec_command(
+                result = exec_command(
                     [
                         str(ACME_SH_PATH / "acme.sh"),
                         "--renew",
@@ -222,6 +224,25 @@ class XrayService:
                     ],
                     env={"CF_Token": config.cf_api_token or ""},
                 )
+                if result.returncode == 0:
+                    # Cert files on the shared acme volume are now updated.
+                    # Write a flag file so that nginx can detect the renewal and reload.
+                    try:
+                        flag_path = "/var/log/compassvpn/.cert_renewed"
+                        with open(flag_path, "w") as f:
+                            import time as _time
+                            f.write(str(_time.time()))
+                        log.info(
+                            "Cert renewed; wrote reload flag for nginx",
+                            hypothesisId="CERT",
+                            flag=flag_path,
+                        )
+                    except Exception as e:
+                        log.error(
+                            "Cert renewed but failed to write reload flag",
+                            hypothesisId="CERT",
+                            error=str(e),
+                        )
                 # 30-day sleep, interruptible
                 if self._shutdown_event.wait(timeout=86400 * 30):
                     break
