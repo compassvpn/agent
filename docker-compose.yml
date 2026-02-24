@@ -155,32 +155,5 @@ services:
       - '--collector.pressure'
       - "--web.listen-address=172.17.0.1:9100" # only allow access from host.docker.internal interface
 
-  fail2ban:
-    build:
-      context: ./fail2ban
-      dockerfile: Dockerfile
-    restart: always
-    network_mode: host
-    <<: *minimal-perf
-    environment:
-      - TZ=UTC
-      - F2B_LOG_TARGET=STDOUT
-      - F2B_LOG_LEVEL=NOTICE
-      - LOG_DIR=/var/log/compassvpn
-    cap_add:
-      - NET_ADMIN
-      - NET_RAW
-    healthcheck:
-      test: ["CMD", "fail2ban-client", "ping"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-    volumes:
-      - "/var/log:/var/log:ro"
-      - "./fail2ban/data:/data"
-      - "./fail2ban/jail.d:/etc/fail2ban/jail.d:ro"
-      - "./fail2ban/jail.local:/etc/fail2ban/jail.local:ro"
-      - "./fail2ban/filter.d:/etc/fail2ban/filter.d:ro"
-
 volumes:
   acme:
