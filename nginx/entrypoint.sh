@@ -5,22 +5,33 @@ NGINX_CONF_PATH=/etc/nginx/nginx.conf
 sed -i "s|\${NGINX_FAKE_WEBSITE}|$NGINX_FAKE_WEBSITE|g" "$NGINX_CONF_PATH"
 sed -i "s|\${NGINX_PATH}|$NGINX_PATH|g" "$NGINX_CONF_PATH"
 
-# xray-config upstream URL
 UPSTREAM_URL="http://xray-config:5000/subdomain"
 
-# Perform a GET request to the upstream
-RESPONSE=$(curl -s -o /dev/null -w "%{http_code}" "$UPSTREAM_URL")
+MAX_RETRIES=30
+RETRY_COUNT=0
+DIRECT_SUBDOMAIN=""
 
-# Check the HTTP status code of xray-config upstream
-if [ "$RESPONSE" -eq 200 ]; then
-    echo "xray-config is ready: $UPSTREAM_URL"
-else
-    echo "xray-config is not ready yet: $UPSTREAM_URL (HTTP status: $RESPONSE)"
-    sleep 5
+while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
+    TMPFILE=$(mktemp)
+    HTTP_CODE=$(curl -s -o "$TMPFILE" -w "%{http_code}" "$UPSTREAM_URL")
+    BODY_TEXT=$(cat "$TMPFILE")
+    rm -f "$TMPFILE"
+
+    if [ "$HTTP_CODE" -eq 200 ] && [ -n "$BODY_TEXT" ]; then
+        DIRECT_SUBDOMAIN="$BODY_TEXT"
+        echo "xray-config is ready: $UPSTREAM_URL ($DIRECT_SUBDOMAIN)"
+        break
+    fi
+
+    echo "Waiting for xray-config subdomain... (HTTP status: $HTTP_CODE)"
+    sleep 2
+    RETRY_COUNT=$((RETRY_COUNT + 1))
+done
+
+if [ -z "$DIRECT_SUBDOMAIN" ]; then
+    echo "Error: xray-config subdomain not available after $MAX_RETRIES retries"
     exit 1
 fi
-
-DIRECT_SUBDOMAIN=$(curl -s "$UPSTREAM_URL")
 
 # Set Nginx log level based on DEBUG env
 NGINX_LOG_LEVEL="warn"
@@ -36,5 +47,23 @@ else
 fi
 
 sed -i "s|\${DIRECT_SUBDOMAIN}|$DIRECT_SUBDOMAIN|g" "$NGINX_CONF_PATH"
+
+CERT_FLAG="/var/log/compassvpn/.cert_renewed"
+LAST_FLAG_TIME=""
+
+# Watch for cert renewal flag and reload nginx when it appears
+(
+    while true; do
+        if [ -f "$CERT_FLAG" ]; then
+            CURRENT_TIME=$(cat "$CERT_FLAG" 2>/dev/null)
+            if [ "$CURRENT_TIME" != "$LAST_FLAG_TIME" ]; then
+                LAST_FLAG_TIME="$CURRENT_TIME"
+                echo "Cert renewal detected; reloading nginx"
+                nginx -s reload
+            fi
+        fi
+        sleep 60
+    done
+) &
 
 nginx -g "daemon off;"
