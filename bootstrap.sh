@@ -31,7 +31,7 @@ check_env_file() {
 
 # Prepare the VM
 prepare_vm() {
-    ./prepare_vm.sh
+    uvx --from ansible@13.4.0 ansible-playbook prepare.yaml
 }
 
 # Install Docker if needed

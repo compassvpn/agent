@@ -1,0 +1,279 @@
+---
+- name: Prepare CompassVPN VM
+  hosts: localhost
+  connection: local
+  become: true
+  gather_facts: true
+
+  vars:
+    dns_servers:
+      - "1.1.1.2"
+      - "127.0.0.53"
+    required_ports:
+      - 80
+      - 8080
+      - 443
+      - 2053
+      - 8443
+      - 9100
+    sysctl_conf_path: /etc/sysctl.d/99-compassvpn.conf
+    compassvpn_log_path: /var/log/compassvpn
+    compassvpn_log_files:
+      - nginx_access.log
+      - nginx_error.log
+      - xray_access.log
+      - xray_error.log
+      - xray.log
+      - debug.log
+    sysctl_content: |
+      fs.file-max = 67108864
+      net.core.default_qdisc = fq
+      net.core.optmem_max = 262144
+      net.core.rmem_max = 33554432
+      net.core.wmem_max = 33554432
+      net.ipv4.tcp_congestion_control = bbr
+      net.ipv4.tcp_max_syn_backlog = 10240
+      net.ipv4.tcp_fin_timeout = 25
+      net.core.netdev_max_backlog = 32768
+      net.netfilter.nf_conntrack_max = 1048576
+      net.netfilter.nf_conntrack_buckets = 262144
+
+  tasks:
+    - name: Check supported OS family
+      ansible.builtin.assert:
+        that:
+          - ansible_distribution | lower in ['ubuntu', 'debian']
+        fail_msg: "This playbook is only supported on Debian/Ubuntu systems."
+
+    - name: Detect OpenVZ
+      ansible.builtin.stat:
+        path: /proc/user_beancounters
+      register: openvz_file
+
+    - name: Install base packages
+      ansible.builtin.apt:
+        update_cache: true
+        cache_valid_time: 3600
+        name:
+          - curl
+          - wget
+          - sudo
+          - coreutils
+          - iproute2
+          - lsof
+          - ufw
+          - logrotate
+        state: present
+
+    - name: Check required ports are free
+      ansible.builtin.shell: |
+        ss -tlpn "sport = :{{ item }}" | grep -q LISTEN
+      args:
+        executable: /bin/bash
+      register: port_check
+      failed_when: port_check.rc == 0
+      changed_when: false
+      loop: "{{ required_ports }}"
+      loop_control:
+        label: "{{ item }}"
+
+    - name: Ensure hostname entry exists in /etc/hosts
+      ansible.builtin.lineinfile:
+        path: /etc/hosts
+        line: "127.0.1.1 {{ ansible_hostname }}"
+        state: present
+        create: false
+        backup: true
+
+    - name: Backup /etc/resolv.conf
+      ansible.builtin.copy:
+        src: /etc/resolv.conf
+        dest: /etc/resolv.conf.bak
+        remote_src: true
+        mode: "0644"
+
+    - name: Remove existing nameserver entries
+      ansible.builtin.lineinfile:
+        path: /etc/resolv.conf
+        regexp: '^nameserver\s+'
+        state: absent
+
+    - name: Add configured DNS nameservers
+      ansible.builtin.blockinfile:
+        path: /etc/resolv.conf
+        marker: "# {mark} COMPASSVPN DNS"
+        block: |
+          {% for dns in dns_servers %}
+          nameserver {{ dns }}
+          {% endfor %}
+
+    - name: Check timedatectl availability
+      ansible.builtin.command: command -v timedatectl
+      register: timedatectl_check
+      changed_when: false
+      failed_when: false
+
+    - name: Set timezone to UTC
+      ansible.builtin.command: timedatectl set-timezone UTC
+      when: timedatectl_check.rc == 0
+      changed_when: true
+
+    - name: Write CompassVPN sysctl tuning file
+      ansible.builtin.copy:
+        dest: "{{ sysctl_conf_path }}"
+        content: "{{ sysctl_content }}"
+        mode: "0644"
+      when: not openvz_file.stat.exists
+
+    - name: Apply sysctl settings
+      ansible.builtin.command: sysctl --system
+      when: not openvz_file.stat.exists
+      changed_when: true
+
+    - name: Check if firewall-cmd exists
+      ansible.builtin.command: command -v firewall-cmd
+      register: firewall_cmd_check
+      changed_when: false
+      failed_when: false
+
+    - name: Stop firewalld when present
+      ansible.builtin.systemd:
+        name: firewalld
+        state: stopped
+        enabled: false
+      when: firewall_cmd_check.rc == 0
+      failed_when: false
+
+    - name: Purge firewalld when present
+      ansible.builtin.apt:
+        name: firewalld
+        state: absent
+        purge: true
+      when: firewall_cmd_check.rc == 0
+
+    - name: Detect active SSH port
+      ansible.builtin.shell: |
+        set -o pipefail
+        ss -tlnp | grep -oP '(?<=:)\d+(?=.*sshd)' | head -n1
+      args:
+        executable: /bin/bash
+      register: active_ssh_port
+      changed_when: false
+      failed_when: false
+
+    - name: Detect configured SSH port fallback
+      ansible.builtin.shell: |
+        set -o pipefail
+        grep -oP '^Port\s+\K\d+' /etc/ssh/sshd_config | head -n1
+      args:
+        executable: /bin/bash
+      register: configured_ssh_port
+      changed_when: false
+      failed_when: false
+      when: active_ssh_port.stdout | trim == ''
+
+    - name: Set SSH port fact
+      ansible.builtin.set_fact:
+        ssh_port: >-
+          {{
+            (active_ssh_port.stdout | trim)
+            if (active_ssh_port.stdout | trim != '')
+            else ((configured_ssh_port.stdout | trim) if (configured_ssh_port is defined and configured_ssh_port.stdout | trim != '') else '22')
+          }}
+
+    - name: Optimize UFW default sysctl config
+      ansible.builtin.replace:
+        path: /etc/default/ufw
+        regexp: '/etc/ufw/sysctl.conf'
+        replace: '/etc/sysctl.conf'
+      failed_when: false
+
+    - name: Reset UFW rules
+      ansible.builtin.command: ufw --force reset
+      changed_when: true
+
+    - name: Set UFW default deny incoming
+      ansible.builtin.command: ufw default deny incoming
+      changed_when: true
+
+    - name: Set UFW default allow outgoing
+      ansible.builtin.command: ufw default allow outgoing
+      changed_when: true
+
+    - name: Allow SSH port in UFW
+      ansible.builtin.command: "ufw allow {{ ssh_port }}/tcp"
+      changed_when: true
+
+    - name: Allow required TCP ports in UFW
+      ansible.builtin.command: "ufw allow {{ item }}/tcp"
+      loop: "{{ required_ports }}"
+      changed_when: true
+
+    - name: Allow required UDP ports in UFW
+      ansible.builtin.command: "ufw allow {{ item }}/udp"
+      loop: "{{ required_ports }}"
+      changed_when: true
+
+    - name: Enable UFW
+      ansible.builtin.command: ufw --force enable
+      changed_when: true
+
+    - name: Ensure CompassVPN log directory exists
+      ansible.builtin.file:
+        path: "{{ compassvpn_log_path }}"
+        state: directory
+        owner: root
+        group: root
+        mode: "0750"
+
+    - name: Ensure CompassVPN log files exist
+      ansible.builtin.file:
+        path: "{{ compassvpn_log_path }}/{{ item }}"
+        state: touch
+        mode: "0640"
+        owner: root
+        group: root
+      loop: "{{ compassvpn_log_files }}"
+
+    - name: Ensure Nginx log directory exists
+      ansible.builtin.file:
+        path: /var/log/nginx
+        state: directory
+        mode: "0755"
+
+    - name: Ensure Nginx error log exists
+      ansible.builtin.file:
+        path: /var/log/nginx/error.log
+        state: touch
+        mode: "0640"
+        owner: root
+        group: root
+
+    - name: Configure CompassVPN logrotate
+      ansible.builtin.copy:
+        dest: /etc/logrotate.d/compassvpn
+        mode: "0644"
+        content: |
+          /var/log/compassvpn/*.log {
+              size 500M
+              rotate 2
+              compress
+              delaycompress
+              missingok
+              notifempty
+              copytruncate
+              dateext
+              dateformat -%Y%m%d-%s
+          }
+
+    - name: Enable logrotate.timer when available
+      ansible.builtin.systemd:
+        name: logrotate.timer
+        enabled: true
+        state: started
+      failed_when: false
+
+    - name: Run logrotate validation
+      ansible.builtin.command: logrotate -f /etc/logrotate.conf
+      changed_when: true
+      failed_when: false
