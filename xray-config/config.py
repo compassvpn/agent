@@ -446,14 +446,17 @@ class XrayConfig:
         self.warps_ready = False
         self.wg_configs = {}
         warp_active = False
+        active_inbounds = [
+            ib for ib in self.configured_inbounds
+            if "inbound" in ib and "tag" in ib["inbound"]
+        ]
         if self.env_config.get("XRAY_OUTBOUND") == "warp":
             try:
                 self.warps = []
-                self.warps.append(register_warp())
-                sleep(2)
-                self.warps.append(register_warp())
-                sleep(2)
-                self.warps.append(register_warp())
+                for i in range(len(active_inbounds)):
+                    if i > 0:
+                        sleep(2)
+                    self.warps.append(register_warp())
                 self.warps_ready = True
                 warp_active = True
             except Exception as e:
@@ -481,27 +484,17 @@ AllowedIPs = 0.0.0.0/0, ::/0
 Endpoint = engage.cloudflareclient.com:2408
 """
 
-            inbound_tags = [
-                ib["inbound"]["tag"]
-                for ib in self.configured_inbounds
-                if "inbound" in ib and "tag" in ib["inbound"]
-            ]
-            self.xray_config["routing"]["rules"].insert(
-                0,
-                {
-                    "inboundTag": inbound_tags,
-                    "balancerTag": "balancer1",
-                },
-            )
-
             self.xray_config["routing"]["domainStrategy"] = "IPOnDemand"
-            self.xray_config["routing"]["balancers"] = [
-                {
-                    "tag": "balancer1",
-                    "selector": ["warp0", "warp1", "warp2"],
-                    "strategy": {"type": "roundRobin"},
-                }
-            ]
+
+            for i, ib in enumerate(active_inbounds):
+                tag = ib["inbound"]["tag"]
+                self.xray_config["routing"]["rules"].insert(
+                    i,
+                    {
+                        "inboundTag": [tag],
+                        "outboundTag": f"warp{i}",
+                    },
+                )
 
             for i, warp in enumerate(self.warps):
                 self.xray_config["outbounds"].append(

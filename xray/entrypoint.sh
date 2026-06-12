@@ -46,29 +46,25 @@ if [ "$XRAY_OUTBOUND" = "warp" ]; then
   fi
 
   # Extract and save each WireGuard config
-  for iface in wg0 wg1 wg2; do
-      CONFIG_CONTENT=$(echo "$WG_CONFIGS" | jq -r ".\"$iface\" // empty")
-      if [ -n "$CONFIG_CONTENT" ]; then
-          echo "$CONFIG_CONTENT" > "/etc/wireguard/${iface}.conf"
-          if [ "$DEBUG" = "true" ]; then
-              echo "Saved /etc/wireguard/${iface}.conf:"
-              echo "$CONFIG_CONTENT"
-          else
-              echo "Saved /etc/wireguard/${iface}.conf"
-          fi
+  for iface in $(echo "$WG_CONFIGS" | jq -r 'keys[]'); do
+      CONFIG_CONTENT=$(echo "$WG_CONFIGS" | jq -r ".\"$iface\"")
+      echo "$CONFIG_CONTENT" > "/etc/wireguard/${iface}.conf"
+      if [ "$DEBUG" = "true" ]; then
+          echo "Saved /etc/wireguard/${iface}.conf:"
+          echo "$CONFIG_CONTENT"
+      else
+          echo "Saved /etc/wireguard/${iface}.conf"
       fi
   done
 
   # Bring up wg interfaces
-  for i in 0 1 2; do
-      if [ -f "/etc/wireguard/wg$i.conf" ]; then
-          echo "Bringing up wg$i..."
-          /usr/bin/wg-quick up "wg$i" || echo "Warning: Failed to bring up wg$i"
-          
-          MONIT_CONF_PATH="/etc/monit.d/wg$i"
-          cp /wg_monit "$MONIT_CONF_PATH"
-          sed -i "s|\${INTERFACE}|wg$i|g" "$MONIT_CONF_PATH"
-      fi
+  for iface in $(echo "$WG_CONFIGS" | jq -r 'keys[]'); do
+      echo "Bringing up $iface..."
+      /usr/bin/wg-quick up "$iface" || echo "Warning: Failed to bring up $iface"
+
+      MONIT_CONF_PATH="/etc/monit.d/$iface"
+      cp /wg_monit "$MONIT_CONF_PATH"
+      sed -i "s|\${INTERFACE}|$iface|g" "$MONIT_CONF_PATH"
   done
 fi
 
