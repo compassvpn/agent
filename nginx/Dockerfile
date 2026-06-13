@@ -1,6 +1,6 @@
 FROM nginx:1.26.3-alpine
 
-RUN apk add curl
+RUN apk add curl jq
 
 COPY ./nginx.conf /etc/nginx/nginx.conf
 

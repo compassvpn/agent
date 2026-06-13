@@ -55,6 +55,12 @@ class XrayService:
                 abort(404)
             return json.dumps(config.wg_configs, indent=4)
 
+        @self.app.route("/nginx-locations")
+        def get_nginx_locations():
+            if not config.initialized:
+                return "Not Ready", 503
+            return json.dumps(config.nginx_locations, indent=4)
+
         @self.app.route("/metrics")
         def metrics():
             return self.latest_metrics

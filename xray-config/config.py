@@ -1,7 +1,10 @@
+import copy
 import json
+import re
 import string
 from time import sleep
 from typing import Any, Dict, List, Optional
+from urllib.parse import unquote, quote
 import requests
 
 from shared_lib.network import get_public_ip
@@ -17,6 +20,102 @@ from shared_lib.paths import (
 )
 
 
+# Inbounds that bind a port directly (no HTTP path) — replicas not supported
+_NO_REPLICA_SUPPORT = {"vless-tcp-tls-direct", "vmess-ws-cdn"}
+
+# Maps inbound name → (nginx server port, location template)
+_NGINX_PROXY_MAP: Dict[str, tuple] = {
+    "vless-hu-tls-direct":     (2053, "hu"),
+    "vless-hu-tls-cdn":        (2053, "hu"),
+    "vless-xhttp-direct":      (8880, "xhttp"),
+    "vless-xhttp-cdn":         (8880, "xhttp"),
+    "vless-xhttp-quic-direct": (8443, "xhttp_quic"),
+    "vless-xhttp-quic-cdn":    (8443, "xhttp_quic"),
+}
+
+_STREAM_PATH_KEY = {
+    "ws":          "wsSettings",
+    "httpupgrade": "httpupgradeSettings",
+    "xhttp":       "xhttpSettings",
+}
+
+
+def _make_replica(inbound_def: Dict[str, Any], replica_index: int, new_port: int) -> Dict[str, Any]:
+    replica = copy.deepcopy(inbound_def)
+    suffix = f"/{replica_index}"
+
+    replica["inbound"]["tag"] += f"-{replica_index}"
+    replica["inbound"]["port"] = new_port
+
+    stream = replica["inbound"].get("streamSettings", {})
+    sk = _STREAM_PATH_KEY.get(stream.get("network", ""))
+    if sk and sk in stream:
+        stream[sk]["path"] += suffix
+
+    link = replica.get("link")
+    if isinstance(link, dict):
+        if "path" in link:
+            link["path"] += suffix
+        if "ps" in link:
+            link["ps"] += f"-{replica_index}"
+    elif isinstance(link, str):
+        replica["link"] = re.sub(
+            r"path=([^&#]+)",
+            lambda m: f"path={quote(unquote(m.group(1)) + suffix, safe='')}",
+            link,
+        )
+        replica["link"] = re.sub(
+            r"#(.+)$",
+            lambda m: f"#{m.group(1)}-{replica_index}",
+            replica["link"],
+        )
+
+    return replica
+
+
+def _nginx_location_block(path: str, xray_port: int, template: str) -> str:
+    if template == "hu":
+        return (
+            f'    location = {path} {{\n'
+            f'        if ($http_upgrade != "websocket") {{ return 404; }}\n'
+            f'        proxy_pass http://xray:{xray_port};\n'
+            f'        proxy_http_version 1.1;\n'
+            f'        proxy_set_header Upgrade $http_upgrade;\n'
+            f'        proxy_set_header Connection "upgrade";\n'
+            f'        proxy_set_header X-Real-IP $remote_addr;\n'
+            f'        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;\n'
+            f'        proxy_set_header Host $host;\n'
+            f'        proxy_redirect off;\n'
+            f'    }}'
+        )
+    if template == "xhttp":
+        return (
+            f'    location {path} {{\n'
+            f'        proxy_pass http://xray:{xray_port};\n'
+            f'        proxy_http_version 1.1;\n'
+            f'        proxy_set_header Host $host;\n'
+            f'        proxy_set_header X-Real-IP $remote_addr;\n'
+            f'        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;\n'
+            f'        proxy_set_header Upgrade $http_upgrade;\n'
+            f'        proxy_set_header Connection $connection_upgrade;\n'
+            f'        proxy_buffering off;\n'
+            f'        proxy_read_timeout 315;\n'
+            f'    }}'
+        )
+    if template == "xhttp_quic":
+        return (
+            f'    location {path} {{\n'
+            f'        grpc_pass grpc://xray:{xray_port};\n'
+            f'        grpc_set_header X-Forwarded-For $proxy_add_x_forwarded_for;\n'
+            f'        grpc_read_timeout 315;\n'
+            f'        grpc_send_timeout 5m;\n'
+            f'        client_body_timeout 5m;\n'
+            f'        client_max_body_size 0;\n'
+            f'    }}'
+        )
+    return ""
+
+
 class XrayConfig:
     def __init__(self) -> None:
         """Initialize instance attributes to hold shared variables."""
@@ -27,7 +126,7 @@ class XrayConfig:
         self.cf_api_token: Optional[str] = None
         self.cf_zone_id: Optional[str] = None
         self.nginx_path: Optional[str] = None
-        self.xray_inbounds: List[str] = []
+        self.xray_inbounds: Dict[str, int] = {}
         self.server_ip: str = "Unknown"
         self.domain: Optional[str] = None
         self.subdomain: Optional[str] = None
@@ -40,6 +139,7 @@ class XrayConfig:
         self.warps_ready: bool = False
         self.wg_configs: Dict[str, str] = {}
         self.warps: List[Dict[str, Any]] = []
+        self.nginx_locations: Dict[int, str] = {}
         self.initialized: bool = False
 
     def _get_domain(self) -> None:
@@ -163,10 +263,13 @@ class XrayConfig:
         self.cf_api_token = self.env_config.get("CF_API_TOKEN")
         self.cf_zone_id = self.env_config.get("CF_ZONE_ID")
         self.nginx_path = self.env_config.get("NGINX_PATH")
-        self.xray_inbounds = self.env_config.get(
+        self.xray_inbounds = {}
+        for entry in self.env_config.get(
             "XRAY_INBOUNDS",
             "vmess-ws-cdn,vless-tcp-tls-direct,vless-hu-tls-direct,vless-hu-tls-cdn,vless-xhttp-quic-direct,vless-xhttp-quic-cdn,vless-xhttp-direct,vless-xhttp-cdn",
-        ).split(",")
+        ).split(","):
+            name, _, count = entry.strip().partition(":")
+            self.xray_inbounds[name] = int(count) if count.isdigit() else 1
 
         log.debug(
             "CF Config",
@@ -312,10 +415,36 @@ class XrayConfig:
                 },
             )
             self.configured_inbounds = [
-                inbound
-                for inbound in all_inbounds
-                if inbound.get("name") in self.xray_inbounds
+                ib for ib in all_inbounds if ib.get("name") in self.xray_inbounds
             ]
+
+            # Expand replicas (before vmess link encoding so dict links are still patchable).
+            # Indices start at 1: replica 1 keeps the original port (matched by static
+            # nginx location blocks), replicas 2+ get ports from the 9000+ pool.
+            expanded: List[Dict[str, Any]] = []
+            _replica_port = 9000
+            for ib in self.configured_inbounds:
+                name = ib.get("name", "")
+                count = self.xray_inbounds.get(name, 1)
+                if name in _NO_REPLICA_SUPPORT and count > 1:
+                    log.warning(
+                        f"{name} does not support replicas; capped at 1",
+                        hypothesisId="CFG",
+                    )
+                    count = 1
+                for idx in range(1, count + 1):
+                    port = ib["inbound"]["port"] if idx == 1 else _replica_port
+                    if idx > 1:
+                        _replica_port += 1
+                    replica = _make_replica(ib, idx, port)
+                    replica["_replica_index"] = idx
+                    if name in _NGINX_PROXY_MAP:
+                        replica["_nginx_port"], replica["_nginx_template"] = _NGINX_PROXY_MAP[name]
+                    expanded.append(replica)
+                if count > 1:
+                    log.info(f"{name}: {count} replicas configured", hypothesisId="CFG")
+            self.configured_inbounds = expanded
+
             for inbound in self.configured_inbounds:
                 if isinstance(inbound.get("link"), dict):
                     inbound["link"] = generate_vmess_link(inbound["link"])
@@ -344,6 +473,18 @@ class XrayConfig:
                 f"Skipped {skipped} TLS inbound(s) with missing certificates",
                 hypothesisId="CFG",
             )
+
+        # Build nginx location blocks for replicas that survived TLS filtering
+        nginx_locs: Dict[int, List[str]] = {}
+        for ib in self.configured_inbounds:
+            if ib.get("_replica_index", 0) > 1 and "_nginx_port" in ib:
+                stream = ib["inbound"].get("streamSettings", {})
+                sk = _STREAM_PATH_KEY.get(stream.get("network", ""))
+                path = stream.get(sk, {}).get("path", "") if sk else ""
+                if path:
+                    block = _nginx_location_block(path, ib["inbound"]["port"], ib["_nginx_template"])
+                    nginx_locs.setdefault(ib["_nginx_port"], []).append(block)
+        self.nginx_locations = {port: "\n\n".join(blocks) for port, blocks in nginx_locs.items()}
 
         inbounds_list = [
             {
@@ -528,10 +669,7 @@ Endpoint = engage.cloudflareclient.com:2408
             {"tag": "blocked", "protocol": "blackhole", "settings": {}}
         ]
 
-        active_inbound_count = len(
-            [ib for ib in self.configured_inbounds if "inbound" in ib]
-        )
-        if active_inbound_count == 0:
+        if not active_inbounds:
             log.warning(
                 "No user-facing inbounds are active. "
                 "Clients will not be able to connect. "
@@ -539,8 +677,9 @@ Endpoint = engage.cloudflareclient.com:2408
                 hypothesisId="CFG",
             )
         else:
+            tags = [ib["inbound"]["tag"] for ib in active_inbounds]
             log.info(
-                f"Initialized with {active_inbound_count} active inbound(s)",
+                f"Initialized with {len(active_inbounds)} active inbound(s): {', '.join(tags)}",
                 hypothesisId="CFG",
             )
 

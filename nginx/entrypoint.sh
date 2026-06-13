@@ -48,6 +48,14 @@ fi
 
 sed -i "s|\${DIRECT_SUBDOMAIN}|$DIRECT_SUBDOMAIN|g" "$NGINX_CONF_PATH"
 
+# Fetch replica location blocks and write include files (empty = no replicas configured)
+LOCATIONS=$(curl -sf "http://xray-config:5000/nginx-locations" 2>/dev/null || echo "{}")
+for port in 2053 8880 8443; do
+    mkdir -p "/etc/nginx/locations.d/$port"
+    printf '%s\n' "$(echo "$LOCATIONS" | jq -r ".\"$port\" // empty")" \
+        > "/etc/nginx/locations.d/$port/replicas.conf"
+done
+
 CERT_FLAG="/var/log/compassvpn/.cert_renewed"
 LAST_FLAG_TIME=""
 

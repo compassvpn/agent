@@ -24,7 +24,8 @@ CF_CLEAN_IP_DOMAIN=
 
 XRAY_OUTBOUND=direct
 
-XRAY_INBOUNDS=vless-tcp-tls-direct,vless-hu-tls-direct,vless-xhttp-quic-direct  
+# Append :<count> to create replicas via path-based routing, e.g.: vless-hu-tls-cdn:3
+XRAY_INBOUNDS=vless-tcp-tls-direct,vless-hu-tls-direct,vless-xhttp-quic-direct 
 
 SSL_PROVIDER=letsencrypt
 
