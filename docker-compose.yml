@@ -129,7 +129,7 @@ services:
       - node-exporter
 
   node-exporter:
-    image: prom/node-exporter:v1.9.1
+    image: prom/node-exporter:v1.11.1
     restart: always
     network_mode: host
     <<: *minimal-perf

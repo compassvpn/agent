@@ -1,4 +1,4 @@
-FROM nginx:1.26.3-alpine
+FROM nginx:1.31.1-alpine-slim
 
 RUN apk add curl jq
 

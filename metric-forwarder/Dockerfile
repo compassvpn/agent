@@ -1,4 +1,4 @@
-FROM python:3.13.2-bullseye
+FROM python:3.14.6-slim-bookworm
 
 RUN \
     # Update apt and install wget
@@ -20,7 +20,8 @@ RUN \
     dpkg -i ga.deb && \
     rm ga.deb && \
     \
-    # Clean apt cache
+    # Remove wget and clean up
+    apt-get purge -y wget && apt-get autoremove -y && \
     rm -rf /var/lib/apt/lists/*
 
 COPY requirements.txt requirements.txt

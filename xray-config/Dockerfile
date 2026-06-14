@@ -1,6 +1,6 @@
-FROM teddysun/xray:25.6.8 AS xray-image
+FROM teddysun/xray:26.3.27 AS xray-image
 
-FROM python:3.13.2-alpine3.21
+FROM python:3.14.6-alpine3.24
 
 COPY requirements.txt requirements.txt
 
