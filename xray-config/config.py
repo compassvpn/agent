@@ -685,6 +685,29 @@ Endpoint = engage.cloudflareclient.com:2408
 
         self.initialized = True
 
+    def reload_certs(self) -> bool:
+        """Re-read renewed cert files from disk and patch xray_config TLS inbounds in-place."""
+        if not self.direct_subdomain:
+            return False
+        cert_path = ACME_SH_PATH / f"{self.direct_subdomain}_ecc" / "fullchain.cer"
+        key_path = ACME_SH_PATH / f"{self.direct_subdomain}_ecc" / f"{self.direct_subdomain}.key"
+        try:
+            with open(cert_path, "r") as f:
+                self.cert_public = f.read()
+            with open(key_path, "r") as f:
+                self.cert_private = f.read()
+        except Exception as e:
+            log.error("reload_certs: failed to read cert files", hypothesisId="CERT", error=str(e))
+            return False
+        for inbound in self.xray_config.get("inbounds", []):
+            tls = inbound.get("streamSettings", {}).get("tlsSettings", {})
+            for cert_entry in tls.get("certificates", []):
+                if "certificate" in cert_entry:
+                    cert_entry["certificate"] = [self.cert_public]
+                if "key" in cert_entry:
+                    cert_entry["key"] = [self.cert_private]
+        return True
+
     def get_config_links(self) -> List[str]:
         """Return formatted config links for active inbounds."""
         configs: List[str] = []

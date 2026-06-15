@@ -230,6 +230,17 @@ class XrayService:
                 )
                 if result.returncode == 0:
                     # Cert files on the shared acme volume are now updated.
+                    # Reload certs into config so the /config endpoint serves fresh PEMs.
+                    if config.reload_certs():
+                        log.info(
+                            "In-memory certs and xray_config updated after renewal",
+                            hypothesisId="CERT",
+                        )
+                    else:
+                        log.error(
+                            "reload_certs failed after renewal; xray will serve stale cert until restart",
+                            hypothesisId="CERT",
+                        )
                     # Write a flag file so that nginx can detect the renewal and reload.
                     try:
                         flag_path = "/var/log/compassvpn/.cert_renewed"

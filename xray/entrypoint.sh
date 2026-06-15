@@ -109,4 +109,20 @@ fi
 
 monit --version
 
+# Poll xray-config hourly; if the served config changes (e.g. renewed TLS cert),
+# write the new config.json and SIGHUP xray so it reloads without a full restart.
+config_watcher() {
+    while true; do
+        sleep 3600
+        new=$(curl -sf "$XRAY_CONFIG_URL") || continue
+        if [ "$new" != "$(cat /etc/xray/config.json)" ]; then
+            printf '%s' "$new" > /etc/xray/config.json
+            if [ -f /run/xray.pid ]; then
+                kill -HUP "$(cat /run/xray.pid)" && echo "xray config updated and reloaded"
+            fi
+        fi
+    done
+}
+config_watcher &
+
 monit -I
