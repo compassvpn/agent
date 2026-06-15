@@ -21,10 +21,10 @@ RUN apk add --no-cache --virtual .build-deps wget unzip && \
         echo "Unsupported architecture: $ARCH" >&2; \
         exit 1; \
     fi && \
-    wget -L -O knife.zip "https://github.com/lilendian0x00/xray-knife/releases/download/v3.27.64/Xray-knife-linux-${arch_name}.zip" && \
+    wget -L -O knife.zip "https://github.com/lilendian0x00/xray-knife/releases/download/v10.0.0/Xray-knife-linux-${arch_name}.zip" && \
     unzip knife.zip && \
     mv ./xray-knife /usr/bin/ && \
-    rm knife.zip && \
+    rm -f knife.zip LICENSE README.md && \
     \
     # Install acme.sh
     curl https://get.acme.sh | sh && \

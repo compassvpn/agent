@@ -168,20 +168,18 @@ class XrayService:
             exec_command(
                 [
                     "xray-knife",
-                    "net",
                     "http",
                     "--thread",
-                    "1",
+                    "6",
+                    "-v",
                     "-d",
-                    "30000",
-                    "-r",
+                    "10000",
                     "-e",
-                    "-p",
-                    "-a",
-                    "1000",
                     "-f",
                     str(CONFIGS_CSV),
-                    "--type",
+                    "-o",
+                    str(VALID_CSV),
+                    "-x",
                     "csv",
                 ]
             )
