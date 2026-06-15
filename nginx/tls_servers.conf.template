@@ -1,0 +1,142 @@
+# Vless-HU-TLS Handling. (Both direct and CDN)
+server {
+    listen 2053 ssl reuseport;
+    listen [::]:2053 ssl reuseport;
+    http2 on;
+
+    ssl_certificate /root/.acme.sh/${DIRECT_SUBDOMAIN}_ecc/fullchain.cer;
+    ssl_certificate_key /root/.acme.sh/${DIRECT_SUBDOMAIN}_ecc/${DIRECT_SUBDOMAIN}.key;
+    ssl_protocols TLSv1.3;
+
+    # Block sensitive paths
+    if ($is_forbidden_path = 1) {
+        return 403;
+    }
+
+    # Forwards this path requests to xray (direct).
+    location = /${NGINX_PATH}/1 {
+        if ($http_upgrade != "websocket") {
+            return 404;
+        }
+        proxy_pass http://xray:8002;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header Host $host;
+        proxy_redirect off;
+    }
+
+    # Forwards this path requests to xray (cdn).
+    location = /${NGINX_PATH}/cdn/1 {
+        if ($http_upgrade != "websocket") {
+            return 404;
+        }
+        proxy_pass http://xray:8022;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header Host $host;
+        proxy_redirect off;
+    }
+
+    include /etc/nginx/locations.d/2053/replicas.conf;
+
+    # Fallback all other requests to an external website.
+    location / {
+        sub_filter $proxy_host $host;
+        sub_filter_once off;
+        set $website ${NGINX_FAKE_WEBSITE};
+        proxy_pass https://$website;
+
+        proxy_set_header Host $proxy_host;
+        proxy_http_version 1.1;
+        proxy_cache_bypass $http_upgrade;
+        proxy_ssl_server_name on;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection $connection_upgrade;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header Forwarded $proxy_add_forwarded;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header X-Forwarded-Port $server_port;
+        proxy_connect_timeout 60s;
+        proxy_send_timeout 60s;
+        proxy_read_timeout 60s;
+    }
+}
+
+# Vless-XHTTP-QUIC Handling.
+server {
+    # Vless-xhttp-quic-direct; Client will connect directly with alpn=h3,h2 (h2 for fallback when h3 is not available).
+    listen 8443 quic reuseport;
+    listen [::]:8443 quic reuseport;
+    # Vless-xhttp-quic-CDN; Client will connect to CF with alpn=h3,h2 (h2 for fallback when h3 is not available) and CF will connect to VM with h2,http1.1.
+    listen 8443 ssl reuseport;
+    listen [::]:8443 ssl reuseport;
+    http2 on;
+
+    ssl_certificate /root/.acme.sh/${DIRECT_SUBDOMAIN}_ecc/fullchain.cer;
+    ssl_certificate_key /root/.acme.sh/${DIRECT_SUBDOMAIN}_ecc/${DIRECT_SUBDOMAIN}.key;
+    ssl_protocols TLSv1.3;
+    ssl_early_data on;
+
+    add_header Alt-Svc 'h3=":8443"; ma=86400' always;
+    add_header Strict-Transport-Security "max-age=31536000; includeSubDomains; preload" always;
+    add_header QUIC-Status $http3;
+
+    # Block sensitive paths
+    if ($is_forbidden_path = 1) {
+        return 403;
+    }
+
+    # Forwards this path requests to xray (direct).
+    location /${NGINX_PATH}/1 {
+        grpc_pass grpc://xray:8003;
+        grpc_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        grpc_read_timeout 315;
+        grpc_send_timeout 5m;
+        client_body_timeout 5m;
+        client_max_body_size 0;
+    }
+
+    # Forwards this path requests to xray (cdn).
+    location /${NGINX_PATH}/cdn/1 {
+        grpc_pass grpc://xray:8033;
+        grpc_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        grpc_read_timeout 315;
+        grpc_send_timeout 5m;
+        client_body_timeout 5m;
+        client_max_body_size 0;
+    }
+
+    include /etc/nginx/locations.d/8443/replicas.conf;
+
+    # Fallback all other requests to an external website.
+    location / {
+        sub_filter $proxy_host $host;
+        sub_filter_once off;
+        set $website ${NGINX_FAKE_WEBSITE};
+        proxy_pass https://$website;
+
+        proxy_set_header Host $proxy_host;
+        proxy_http_version 1.1;
+        proxy_cache_bypass $http_upgrade;
+        proxy_ssl_server_name on;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection $connection_upgrade;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header Forwarded $proxy_add_forwarded;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header X-Forwarded-Port $server_port;
+        proxy_connect_timeout 60s;
+        proxy_send_timeout 60s;
+        proxy_read_timeout 60s;
+    }
+}

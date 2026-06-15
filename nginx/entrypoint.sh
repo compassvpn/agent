@@ -1,65 +1,75 @@
 #!/bin/sh
+set -eu
 
 NGINX_CONF_PATH=/etc/nginx/nginx.conf
+TLS_TEMPLATE=/etc/nginx/tls_servers.conf.template
+TLS_CONF=/etc/nginx/conf.d/tls_servers.conf
+XRAY_CONFIG_BASE="http://xray-config:5000"
+MAX_RETRIES=60
 
-sed -i "s|\${NGINX_FAKE_WEBSITE}|$NGINX_FAKE_WEBSITE|g" "$NGINX_CONF_PATH"
-sed -i "s|\${NGINX_PATH}|$NGINX_PATH|g" "$NGINX_CONF_PATH"
+mkdir -p /etc/nginx/conf.d
 
-UPSTREAM_URL="http://xray-config:5000/subdomain"
+NGINX_LOG_LEVEL="warn"
+if [ "${DEBUG:-false}" = "true" ]; then
+    NGINX_LOG_LEVEL="debug"
+fi
 
-MAX_RETRIES=30
+# Wait for xray-config to fully initialize and capture nginx locations in one
+# request. /nginx-locations returns 503 while config.initialized is False.
+echo "Waiting for xray-config to initialize..."
 RETRY_COUNT=0
-DIRECT_SUBDOMAIN=""
-
-while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
+LOCATIONS="{}"
+while [ "$RETRY_COUNT" -lt "$MAX_RETRIES" ]; do
     TMPFILE=$(mktemp)
-    HTTP_CODE=$(curl -s -o "$TMPFILE" -w "%{http_code}" "$UPSTREAM_URL")
-    BODY_TEXT=$(cat "$TMPFILE")
-    rm -f "$TMPFILE"
-
-    if [ "$HTTP_CODE" -eq 200 ] && [ -n "$BODY_TEXT" ]; then
-        DIRECT_SUBDOMAIN="$BODY_TEXT"
-        echo "xray-config is ready: $UPSTREAM_URL ($DIRECT_SUBDOMAIN)"
+    HTTP_CODE=$(curl -s -o "$TMPFILE" -w "%{http_code}" \
+        "$XRAY_CONFIG_BASE/nginx-locations" 2>/dev/null || printf "000")
+    if [ "$HTTP_CODE" -eq 200 ]; then
+        LOCATIONS=$(cat "$TMPFILE")
+        rm -f "$TMPFILE"
+        echo "xray-config is ready"
         break
     fi
-
-    echo "Waiting for xray-config subdomain... (HTTP status: $HTTP_CODE)"
+    rm -f "$TMPFILE"
+    echo "Waiting for xray-config... (HTTP $HTTP_CODE, attempt $((RETRY_COUNT + 1))/$MAX_RETRIES)"
     sleep 2
     RETRY_COUNT=$((RETRY_COUNT + 1))
 done
 
-if [ -z "$DIRECT_SUBDOMAIN" ]; then
-    echo "Error: xray-config subdomain not available after $MAX_RETRIES retries"
+if [ "$RETRY_COUNT" -eq "$MAX_RETRIES" ]; then
+    echo "Error: xray-config not ready after $MAX_RETRIES retries"
     exit 1
 fi
 
-# Set Nginx log level based on DEBUG env
-NGINX_LOG_LEVEL="warn"
-if [ "$DEBUG" = "true" ]; then
-    NGINX_LOG_LEVEL="debug"
-fi
+# Render static placeholders in the main config.
+# The explicit variable list leaves nginx's own $variables untouched.
+NGINX_LOG_LEVEL="$NGINX_LOG_LEVEL" \
+    envsubst '${NGINX_FAKE_WEBSITE}${NGINX_PATH}${NGINX_LOG_LEVEL}' \
+    < "$NGINX_CONF_PATH" > /tmp/nginx.conf && mv /tmp/nginx.conf "$NGINX_CONF_PATH"
 
-# Robust replacement for the global error_log directive
-if grep -q "^error_log /var/log/compassvpn/nginx_error.log" "$NGINX_CONF_PATH"; then
-    sed -i "s|^error_log /var/log/compassvpn/nginx_error.log.*|error_log /var/log/compassvpn/nginx_error.log $NGINX_LOG_LEVEL;|" "$NGINX_CONF_PATH"
+# TLS server blocks require a Cloudflare subdomain and certificate.
+# When CF credentials are present the subdomain is always available at this
+# point because xray-config finished initializing above.
+if [ -n "${CF_API_TOKEN:-}" ] && [ -n "${CF_ZONE_ID:-}" ]; then
+    DIRECT_SUBDOMAIN=$(curl -sf "$XRAY_CONFIG_BASE/subdomain")
+    DIRECT_SUBDOMAIN="$DIRECT_SUBDOMAIN" \
+        envsubst '${NGINX_FAKE_WEBSITE}${NGINX_PATH}${DIRECT_SUBDOMAIN}' \
+        < "$TLS_TEMPLATE" > "$TLS_CONF"
+    echo "TLS config generated for $DIRECT_SUBDOMAIN"
 else
-    echo "Warning: error_log directive for nginx_error.log not found in $NGINX_CONF_PATH"
+    echo "Cloudflare not configured: TLS server blocks disabled"
+    : > "$TLS_CONF"
 fi
 
-sed -i "s|\${DIRECT_SUBDOMAIN}|$DIRECT_SUBDOMAIN|g" "$NGINX_CONF_PATH"
-
-# Fetch replica location blocks and write include files (empty = no replicas configured)
-LOCATIONS=$(curl -sf "http://xray-config:5000/nginx-locations" 2>/dev/null || echo "{}")
+# Write per-port replica location blocks.
 for port in 2053 8880 8443; do
     mkdir -p "/etc/nginx/locations.d/$port"
-    printf '%s\n' "$(echo "$LOCATIONS" | jq -r ".\"$port\" // empty")" \
+    printf '%s\n' "$(printf '%s' "$LOCATIONS" | jq -r ".\"$port\" // empty")" \
         > "/etc/nginx/locations.d/$port/replicas.conf"
 done
 
+# Watch for cert renewal flag and reload nginx when it changes.
 CERT_FLAG="/var/log/compassvpn/.cert_renewed"
 LAST_FLAG_TIME=""
-
-# Watch for cert renewal flag and reload nginx when it appears
 (
     while true; do
         if [ -f "$CERT_FLAG" ]; then
