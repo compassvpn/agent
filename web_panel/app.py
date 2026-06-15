@@ -1,4 +1,5 @@
 import os
+import re
 import signal
 import json
 from typing import Dict, List, Any
@@ -279,7 +280,7 @@ def index() -> Any:
             # Specific validation for NGINX_PATH
             if key == "NGINX_PATH":
                 value = value.strip("/")
-                if not value.isalnum() and "_" not in value and "-" not in value:
+                if not re.fullmatch(r'[a-zA-Z0-9_-]+', value):
                     errors.append(
                         "NGINX Path must be alphanumeric (dashes/underscores allowed)."
                     )
