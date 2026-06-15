@@ -11,6 +11,6 @@ if METRIC_PUSH_METHOD == "pushgateway":
 
     run_jobs()
 else:
-    from grafana_agent import start
+    from alloy import start
 
     start()

@@ -1,12 +1,12 @@
 # Read Here: https://www.compassvpn.org/installation/configuration/
 
-# Metric push method - pushgateway or grafana_agent
-METRIC_PUSH_METHOD=grafana_agent
+# Metric push method - alloy or pushgateway
+METRIC_PUSH_METHOD=alloy
 
-# METRIC_PUSH_METHOD: grafana_agent
-GRAFANA_AGENT_REMOTE_WRITE_URL=
-GRAFANA_AGENT_REMOTE_WRITE_USER=
-GRAFANA_AGENT_REMOTE_WRITE_PASSWORD=
+# METRIC_PUSH_METHOD: alloy
+ALLOY_REMOTE_WRITE_URL=
+ALLOY_REMOTE_WRITE_USER=
+ALLOY_REMOTE_WRITE_PASSWORD=
 
 # METRIC_PUSH_METHOD: pushgateway
 PUSHGATEWAY_URL=
