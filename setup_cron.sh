@@ -181,7 +181,7 @@ remove_managed_blocks() {
         if (( start_line > 0 && end_line >= start_line )); then
             log_info "Found managed block from line $start_line to $end_line. Removing it." >&2
             # Remove the block and update the content for the next iteration
-            crontab_content=$(echo -e "$crontab_content" | sed "${start_line},${end_line}d")
+            crontab_content=$(printf '%s\n' "$crontab_content" | sed "${start_line},${end_line}d")
         elif (( start_line > 0 && end_line == 0 )) || (( end_line > 0 && start_line == 0 )) || (( end_line > 0 && start_line > end_line )); then
              echo "Warning: Found mismatched markers (start: $start_line, end: $end_line). Stopping block removal loop." >&2
              break
@@ -195,10 +195,10 @@ remove_managed_blocks() {
 
 remove_stray_jobs() {
     log_info "Removing stray bootstrap jobs..." >&2
-    crontab_without_stray_bootstrap=$(echo -e "$crontab_without_any_managed_blocks" | grep -E -v "$BOOTSTRAP_COMMAND_FRAGMENT")
+    crontab_without_stray_bootstrap=$(printf '%s\n' "$crontab_without_any_managed_blocks" | grep -E -v "$BOOTSTRAP_COMMAND_FRAGMENT")
     
     log_info "Removing stray log cleaning jobs..." >&2
-    final_existing_crontab=$(echo -e "$crontab_without_stray_bootstrap" | grep -F -v "$LOG_CLEAN_COMMAND_FRAGMENT")
+    final_existing_crontab=$(printf '%s\n' "$crontab_without_stray_bootstrap" | grep -F -v "$LOG_CLEAN_COMMAND_FRAGMENT")
 }
 
 generate_new_jobs() {
