@@ -49,20 +49,6 @@ function handleConditionChange(triggerElement) {
     }
 }
 
-// Specific toggle for Metric fields (Grafana vs Pushgateway)
-function toggleMetricFields() {
-    var select = document.getElementById('METRIC_PUSH_METHOD');
-    var grafanaFields = document.querySelectorAll('.grafana-fields');
-    var pushgatewayFields = document.querySelectorAll('.pushgateway-fields');
-
-    if (select && grafanaFields.length > 0 && pushgatewayFields.length > 0) {
-        const showGrafana = select.value === 'grafana_agent';
-        // Simplified logic: Show pushgateway fields if grafana is not selected
-        grafanaFields.forEach(el => el.style.display = showGrafana ? 'block' : 'none');
-        pushgatewayFields.forEach(el => el.style.display = !showGrafana ? 'block' : 'none');
-    }
-}
-
 // Specific toggle for CUSTOM_DNS select to show/hide/require the text input
 function toggleCustomDnsText(selectElement) {
      var customInput = document.querySelector('.custom-dns-text-input');
@@ -199,8 +185,6 @@ document.addEventListener('DOMContentLoaded', function() {
     });
 
     // 2. Initialize visibility for specific complex toggles
-    toggleMetricFields(); // Grafana vs Pushgateway
-
     var customDnsSelect = document.getElementById('CUSTOM_DNS');
     if (customDnsSelect) {
         toggleCustomDnsText(customDnsSelect); // Custom DNS text input

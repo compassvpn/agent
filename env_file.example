@@ -1,17 +1,8 @@
 # Read Here: https://www.compassvpn.org/installation/configuration/
 
-# Metric push method - alloy or pushgateway
-METRIC_PUSH_METHOD=alloy
-
-# METRIC_PUSH_METHOD: alloy
 ALLOY_REMOTE_WRITE_URL=
 ALLOY_REMOTE_WRITE_USER=
 ALLOY_REMOTE_WRITE_PASSWORD=
-
-# METRIC_PUSH_METHOD: pushgateway
-PUSHGATEWAY_URL=
-PUSHGATEWAY_AUTH_USER=
-PUSHGATEWAY_AUTH_PASSWORD=
 
 # name of the donor - will appear in all metrics as a label
 DONOR=compass

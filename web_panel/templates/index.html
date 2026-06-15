@@ -76,14 +76,6 @@
                                         {% do div_attributes.append('data-condition-field=' + condition.field) %}
                                         {% do div_attributes.append('data-condition-value=' + condition.value) %}
                                     {% endif %}
-                                    {# Special handling for metric fields #}
-                                    {% if key in ['GRAFANA_AGENT_REMOTE_WRITE_URL', 'GRAFANA_AGENT_REMOTE_WRITE_USER', 'GRAFANA_AGENT_REMOTE_WRITE_PASSWORD'] %}
-                                         {% do field_classes.append('metric-fields') %}
-                                         {% do field_classes.append('grafana-fields') %}
-                                    {% elif key in ['PUSHGATEWAY_URL', 'PUSHGATEWAY_AUTH_USER', 'PUSHGATEWAY_AUTH_PASSWORD'] %}
-                                         {% do field_classes.append('metric-fields') %}
-                                         {% do field_classes.append('pushgateway-fields') %}
-                                    {% endif %}
 
                                     {# --- Render Field Container --- #}
                                     <div class="{{ field_classes | join(' ') }}" {{ div_attributes | join (' ') | safe }}>
@@ -137,7 +129,7 @@
 
                                         {% elif item.type == 'select' %}
                                             {# Selects use the default value, making 'required' less critical #}
-                                            <select class="form-select" id="{{ field_id }}" name="{{ key }}" {% if key == 'METRIC_PUSH_METHOD' %}onchange="handleConditionChange(this)"{% endif %}>
+                                            <select class="form-select" id="{{ field_id }}" name="{{ key }}" onchange="handleConditionChange(this)">
                                                 {% for option in item.options %}
                                                 <option value="{{ option }}" {% if current_value == option %}selected{% endif %}>{{ option.replace('_',' ').title() if option is string else option }}</option>
                                                 {% endfor %}

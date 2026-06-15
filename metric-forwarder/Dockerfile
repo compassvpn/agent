@@ -10,7 +10,6 @@ RUN pip3 install --break-system-packages -r requirements.txt
 
 COPY common.py common.py
 COPY alloy.py alloy.py
-COPY pushgateway.py pushgateway.py
 COPY run.py run.py
 
 CMD ["python3", "run.py"]

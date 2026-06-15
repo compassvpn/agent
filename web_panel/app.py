@@ -90,20 +90,11 @@ except Exception as e:
 
 CONFIG_SCHEMA: List[Dict[str, Any]] = [
     {
-        "name": "METRIC_PUSH_METHOD",
-        "type": "select",
-        "default": "alloy",
-        "options": ["alloy", "pushgateway"],
-        "comment": 'Metric push method. Recommended: Alloy. <a href="https://www.compassvpn.org/installation/configuration/#metric_push_method" target="_blank" rel="noopener noreferrer">Read More.</a>',
-        "condition": None,
-    },
-    {
         "name": "ALLOY_REMOTE_WRITE_URL",
         "type": "text",
         "default": "",
         "placeholder": "https://prometheus-prod-XXX-grafana.grafana.net/api/prom/push",
         "comment": 'Endpoint URL for Grafana metrics. <a href="https://www.compassvpn.org/installation/configuration/#alloy_remote_write_url" target="_blank" rel="noopener noreferrer">Read More.</a>',
-        "condition": {"field": "METRIC_PUSH_METHOD", "value": "alloy"},
     },
     {
         "name": "ALLOY_REMOTE_WRITE_USER",
@@ -111,7 +102,6 @@ CONFIG_SCHEMA: List[Dict[str, Any]] = [
         "default": "",
         "placeholder": "Your Grafana User ID",
         "comment": 'Username for Grafana metrics endpoint. <a href="https://www.compassvpn.org/installation/configuration/#alloy_remote_write_user" target="_blank" rel="noopener noreferrer">Read More.</a>',
-        "condition": {"field": "METRIC_PUSH_METHOD", "value": "alloy"},
     },
     {
         "name": "ALLOY_REMOTE_WRITE_PASSWORD",
@@ -119,31 +109,6 @@ CONFIG_SCHEMA: List[Dict[str, Any]] = [
         "default": "",
         "placeholder": "Your Grafana API Key (glc_...)",
         "comment": 'Password Key for Grafana metrics endpoint. <a href="https://www.compassvpn.org/installation/configuration/#alloy_remote_write_password" target="_blank" rel="noopener noreferrer">Read More.</a>',
-        "condition": {"field": "METRIC_PUSH_METHOD", "value": "alloy"},
-    },
-    {
-        "name": "PUSHGATEWAY_URL",
-        "type": "text",
-        "default": "",
-        "placeholder": "https://your-pushgateway-url:9091",
-        "comment": 'URL of the Pushgateway server. <a href="https://www.compassvpn.org/installation/configuration/#pushgateway_url" target="_blank" rel="noopener noreferrer">Read More.</a>',
-        "condition": {"field": "METRIC_PUSH_METHOD", "value": "pushgateway"},
-    },
-    {
-        "name": "PUSHGATEWAY_AUTH_USER",
-        "type": "text",
-        "default": "",
-        "placeholder": "Pushgateway Username",
-        "comment": 'Username for Pushgateway authentication. <a href="https://www.compassvpn.org/installation/configuration/#pushgateway_auth_user" target="_blank" rel="noopener noreferrer">Read More.</a>',
-        "condition": {"field": "METRIC_PUSH_METHOD", "value": "pushgateway"},
-    },
-    {
-        "name": "PUSHGATEWAY_AUTH_PASSWORD",
-        "type": "password",
-        "default": "",
-        "placeholder": "Pushgateway Password",
-        "comment": 'Password for Pushgateway authentication. <a href="https://www.compassvpn.org/installation/configuration/#pushgateway_auth_password" target="_blank" rel="noopener noreferrer">Read More.</a>',
-        "condition": {"field": "METRIC_PUSH_METHOD", "value": "pushgateway"},
     },
     {
         "name": "DONOR",
