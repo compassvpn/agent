@@ -29,6 +29,7 @@ def parse_config_link(link: str) -> Dict[str, Any]:
                 "id": data.get("id"),
                 "security": data.get("scy", "auto"),
                 "type": data.get("net", "tcp"),
+                "name": data.get("ps", ""),
             }
         except Exception as e:
             raise ValueError(f"Failed to decode vmess link: {e}")
@@ -43,6 +44,7 @@ def parse_config_link(link: str) -> Dict[str, Any]:
                 "id": parsed.username,
                 "security": query.get("security", ["none"])[0],
                 "type": query.get("type", ["tcp"])[0],
+                "name": parsed.fragment or "",
             }
         except Exception as e:
             raise ValueError(f"Failed to parse vless link: {e}")

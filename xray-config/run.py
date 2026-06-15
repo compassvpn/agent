@@ -91,6 +91,7 @@ class XrayService:
                 config_info = parse_config_link(config_link)
                 labels = [
                     f'config_link="{config_link}"',
+                    f'config_name="{config_info["name"]}"',
                     f'machine_id="{get_machine_id()}"',
                     f'ip="{instance_ip}"',
                     f'country="{instance_country}"',
