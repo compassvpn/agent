@@ -175,7 +175,6 @@ class XrayService:
                     "-v",
                     "-d",
                     "10000",
-                    "-e",
                     "-f",
                     str(CONFIGS_CSV),
                     "-o",
