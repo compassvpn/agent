@@ -335,7 +335,6 @@ class XrayConfig:
                     cert_ready = False
                     if cert_path.exists():
                         log.debug("Cert exists, renewing", hypothesisId="CERT")
-                        self._normalize_acme_conf(self.direct_subdomain)
                         run_acme(
                             f"{ssl_provider_server} --renew --dns dns_cf -d {self.direct_subdomain}"
                         )
@@ -666,32 +665,6 @@ Endpoint = engage.cloudflareclient.com:2408
             )
 
         self.initialized = True
-
-    def _normalize_acme_conf(self, domain: str) -> None:
-        """Replace legacy 'disable' string values with '0' in the acme.sh domain conf.
-
-        Older acme.sh stored boolean-off as the string 'disable' (e.g. CERT_STAPLE='disable').
-        Newer acme.sh does integer arithmetic on these fields, causing
-        '[: disable: integer expected' errors on every run. Normalizing once silences it.
-        """
-        conf_dir = ACME_SH_PATH / f"{domain}_ecc"
-        if not conf_dir.is_dir():
-            return
-        for conf_file in conf_dir.glob("*.conf"):
-            try:
-                text = conf_file.read_text()
-                fixed = re.sub(r"='disable'", "='0'", text)
-                if fixed != text:
-                    conf_file.write_text(fixed)
-                    log.debug(
-                        f"Normalized legacy acme.sh conf: {conf_file.name}",
-                        hypothesisId="CERT",
-                    )
-            except Exception as e:
-                log.debug(
-                    f"Could not normalize {conf_file.name}: {e}",
-                    hypothesisId="CERT",
-                )
 
     def reload_certs(self) -> bool:
         """Bump cert serial so the config watcher detects a change and SIGHUPs xray to reload cert files."""

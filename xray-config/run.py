@@ -217,7 +217,6 @@ class XrayService:
                 continue
 
             if config.cf_api_token and config.direct_subdomain:
-                config._normalize_acme_conf(config.direct_subdomain)
                 result = exec_command(
                     [
                         str(ACME_SH_PATH / "acme.sh"),
