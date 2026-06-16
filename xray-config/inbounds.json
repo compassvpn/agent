@@ -79,8 +79,7 @@
           "certificates": [
             {
               "certificateFile": "/root/.acme.sh/${direct_subdomain}_ecc/fullchain.cer",
-              "keyFile": "/root/.acme.sh/${direct_subdomain}_ecc/${direct_subdomain}.key",
-              "ocspStapling": 3600
+              "keyFile": "/root/.acme.sh/${direct_subdomain}_ecc/${direct_subdomain}.key"
             }
           ],
           "minVersion": "1.3",
