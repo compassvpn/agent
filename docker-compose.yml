@@ -49,6 +49,7 @@ services:
       - "/var/log/compassvpn:/var/log/compassvpn:rw"
       - "./shared_lib:/shared_lib:ro"
       - "./env_file:/env_file:ro"
+      - "acme:/root/.acme.sh/:ro"
     cap_add:
       - NET_ADMIN
     restart: always

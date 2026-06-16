@@ -2,6 +2,7 @@ import copy
 import json
 import re
 import string
+from pathlib import Path
 from time import sleep
 from typing import Any, Dict, List, Optional
 from urllib.parse import unquote, quote
@@ -131,8 +132,7 @@ class XrayConfig:
         self.domain: Optional[str] = None
         self.subdomain: Optional[str] = None
         self.direct_subdomain: Optional[str] = None
-        self.cert_public: str = ""
-        self.cert_private: str = ""
+        self._cert_serial: int = 0
         self.cf_clean_ip_domain: str = "npmjs.com"
         self.configured_inbounds: List[Dict[str, Any]] = []
         self.xray_config: Dict[str, Any] = {}
@@ -359,24 +359,6 @@ class XrayConfig:
                                 hypothesisId="CERT",
                             )
 
-                    if cert_ready:
-                        try:
-                            with open(cert_path, "r") as file:
-                                self.cert_public = file.read()
-                            with open(
-                                ACME_SH_PATH
-                                / f"{self.direct_subdomain}_ecc"
-                                / f"{self.direct_subdomain}.key",
-                                "r",
-                            ) as file:
-                                self.cert_private = file.read()
-                            log.debug("Certs loaded successfully", hypothesisId="CERT")
-                        except Exception as e:
-                            log.error(
-                                "Failed to load SSL certificates; TLS inbounds will be skipped",
-                                hypothesisId="CERT",
-                                error=str(e),
-                            )
             else:
                 log.debug("Domain not found, skipping records", hypothesisId="DNS")
         else:
@@ -410,8 +392,6 @@ class XrayConfig:
                     "server_ip": self.server_ip,
                     "direct_subdomain": self.direct_subdomain or "",
                     "subdomain": self.subdomain or "",
-                    "cert_public": self.cert_public or "",
-                    "cert_private": self.cert_private or "",
                 },
             )
             self.configured_inbounds = [
@@ -457,11 +437,11 @@ class XrayConfig:
             if stream.get("security") != "tls":
                 return True
             for cert_entry in stream.get("tlsSettings", {}).get("certificates", []):
-                cert_lines = cert_entry.get("certificate", [])
-                key_lines = cert_entry.get("key", [])
-                if not any(s.strip() for s in (cert_lines if isinstance(cert_lines, list) else [cert_lines])):
+                cert_file = cert_entry.get("certificateFile", "")
+                key_file = cert_entry.get("keyFile", "")
+                if not cert_file or not key_file:
                     return False
-                if not any(s.strip() for s in (key_lines if isinstance(key_lines, list) else [key_lines])):
+                if not Path(cert_file).exists() or not Path(key_file).exists():
                     return False
             return True
 
@@ -563,6 +543,7 @@ class XrayConfig:
             "stats": {},
             "reverse": None,
             "fakeDns": None,
+            "_cert_serial": self._cert_serial,
         }
 
         # Custom DNS configuration
@@ -686,26 +667,16 @@ Endpoint = engage.cloudflareclient.com:2408
         self.initialized = True
 
     def reload_certs(self) -> bool:
-        """Re-read renewed cert files from disk and patch xray_config TLS inbounds in-place."""
+        """Bump cert serial so the config watcher detects a change and SIGHUPs xray to reload cert files."""
         if not self.direct_subdomain:
             return False
         cert_path = ACME_SH_PATH / f"{self.direct_subdomain}_ecc" / "fullchain.cer"
         key_path = ACME_SH_PATH / f"{self.direct_subdomain}_ecc" / f"{self.direct_subdomain}.key"
-        try:
-            with open(cert_path, "r") as f:
-                self.cert_public = f.read()
-            with open(key_path, "r") as f:
-                self.cert_private = f.read()
-        except Exception as e:
-            log.error("reload_certs: failed to read cert files", hypothesisId="CERT", error=str(e))
+        if not cert_path.exists() or not key_path.exists():
+            log.error("reload_certs: cert files not found after renewal", hypothesisId="CERT")
             return False
-        for inbound in self.xray_config.get("inbounds", []):
-            tls = inbound.get("streamSettings", {}).get("tlsSettings", {})
-            for cert_entry in tls.get("certificates", []):
-                if "certificate" in cert_entry:
-                    cert_entry["certificate"] = [self.cert_public]
-                if "key" in cert_entry:
-                    cert_entry["key"] = [self.cert_private]
+        self._cert_serial += 1
+        self.xray_config["_cert_serial"] = self._cert_serial
         return True
 
     def get_config_links(self) -> List[str]:
