@@ -102,8 +102,6 @@ services:
     volumes:
       - /var/log/compassvpn:/var/log/compassvpn:ro
       - "./shared_lib:/shared_lib:ro"
-    ports:
-      - "9550:9550"
     environment:
       - LOG_LEVEL=info
       - PYTHONPATH=/
