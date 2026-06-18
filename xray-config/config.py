@@ -21,6 +21,11 @@ from shared_lib.paths import (
 )
 
 
+# (connect, read) timeout for Cloudflare API calls so a network stall can't
+# hang startup forever.
+CF_API_TIMEOUT = (10, 30)
+
+
 # Inbounds that bind a port directly (no HTTP path) — replicas not supported
 _NO_REPLICA_SUPPORT = {"vless-tcp-tls-direct", "vmess-ws-cdn"}
 
@@ -150,7 +155,7 @@ class XrayConfig:
             "Content-Type": "application/json",
         }
         try:
-            response = requests.get(url, headers=headers)
+            response = requests.get(url, headers=headers, timeout=CF_API_TIMEOUT)
             log.debug(
                 "get_domain response",
                 hypothesisId="DNS",
@@ -183,7 +188,7 @@ class XrayConfig:
                 "Content-Type": "application/json",
             }
             try:
-                response = requests.get(url, headers=headers)
+                response = requests.get(url, headers=headers, timeout=CF_API_TIMEOUT)
                 log.debug(
                     f"Check DNS {record_name}",
                     hypothesisId="DNS",
@@ -214,7 +219,7 @@ class XrayConfig:
                 "Authorization": f"Bearer {self.cf_api_token}",
             }
             try:
-                response = requests.post(endpoint, json=data, headers=headers)
+                response = requests.post(endpoint, json=data, headers=headers, timeout=CF_API_TIMEOUT)
                 if response.status_code == 200:
                     log.debug(
                         "Create DNS result",
