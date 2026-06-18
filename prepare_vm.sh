@@ -57,11 +57,11 @@ fix_etc_hosts() {
         return 1
     fi
 
-    cp "$HOST_PATH" /etc/hosts.bak
-    chmod 644 /etc/hosts.bak
-    if [ $? -ne 0 ]; then
-        echo "Error: Failed to backup hosts file."
-        return 1
+    # Back up the original only once; re-runs must not clobber it with the
+    # already-modified file.
+    if [ ! -f /etc/hosts.bak ]; then
+        cp "$HOST_PATH" /etc/hosts.bak || { echo "Error: Failed to backup hosts file."; return 1; }
+        chmod 644 /etc/hosts.bak
     fi
 
     if ! grep -q "$(hostname)" "$HOST_PATH"; then
@@ -77,26 +77,32 @@ fix_dns() {
         return 1
     fi
 
-    cp "$DNS_PATH" /etc/resolv.conf.bak
-    chmod 644 /etc/resolv.conf.bak
-    if [ $? -ne 0 ]; then
-        echo "Error: Failed to backup resolv.conf file."
-        return 1
+    # Back up the original only once (see fix_etc_hosts).
+    if [ ! -f /etc/resolv.conf.bak ]; then
+        cp "$DNS_PATH" /etc/resolv.conf.bak || { echo "Error: Failed to backup resolv.conf file."; return 1; }
+        chmod 644 /etc/resolv.conf.bak
     fi
 
-    # Test DNS servers before applying
+    # Only apply DNS servers that actually respond; keep the existing
+    # resolv.conf if none do (don't wipe working DNS to dead entries).
+    reachable=()
     for dns in "${DNS_SERVERS[@]}"; do
-        if ! ping -c 1 -W 1 "$dns" >/dev/null 2>&1; then
-            echo "Warning: DNS server $dns is not responding."
+        if ping -c 1 -W 1 "$dns" >/dev/null 2>&1; then
+            reachable+=("$dns")
+        else
+            echo "Warning: DNS server $dns not responding; skipping."
         fi
     done
 
-    sed -i '/nameserver/d' "$DNS_PATH"
-    for dns in "${DNS_SERVERS[@]}"; do
-        echo "nameserver $dns" >> "$DNS_PATH"
-    done
-
-    echo "DNS settings updated."
+    if [ ${#reachable[@]} -gt 0 ]; then
+        sed -i '/nameserver/d' "$DNS_PATH"
+        for dns in "${reachable[@]}"; do
+            echo "nameserver $dns" >> "$DNS_PATH"
+        done
+        echo "DNS settings updated."
+    else
+        echo "Warning: no configured DNS reachable; leaving resolv.conf unchanged."
+    fi
 }
 
 # Set the server TimeZone to UTC
