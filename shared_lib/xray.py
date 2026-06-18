@@ -27,7 +27,9 @@ def parse_config_link(link: str) -> Dict[str, Any]:
                 "host": data.get("add"),
                 "port": data.get("port"),
                 "id": data.get("id"),
-                "security": data.get("scy", "auto"),
+                # cipher = VMess encryption (scy); security = transport TLS (tls field)
+                "cipher": data.get("scy", "auto"),
+                "security": data.get("tls") or "none",
                 "type": data.get("net", "tcp"),
                 "name": data.get("ps", ""),
             }
@@ -42,6 +44,8 @@ def parse_config_link(link: str) -> Dict[str, Any]:
                 "host": parsed.hostname,
                 "port": parsed.port,
                 "id": parsed.username,
+                # VLESS has no protocol-level cipher; security is the transport (tls/reality/none)
+                "cipher": "none",
                 "security": query.get("security", ["none"])[0],
                 "type": query.get("type", ["tcp"])[0],
                 "name": parsed.fragment or "",

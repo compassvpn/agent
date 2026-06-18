@@ -91,7 +91,7 @@ class XrayService:
             instance_country = "Unknown"
 
         metrics = []
-        total_count = len(configs.values())
+        total_count = len(configs)
         failed_count = 0
         for config_link, value in configs.items():
             try:
@@ -108,6 +108,7 @@ class XrayService:
                     f'config_protocol="{_prom_label_escape(config_info["protocol"])}"',
                     f'config_host="{_prom_label_escape(config_info["host"])}"',
                     f'config_port="{_prom_label_escape(config_info["port"])}"',
+                    f'config_cipher="{_prom_label_escape(config_info["cipher"])}"',
                     f'config_security="{_prom_label_escape(config_info["security"])}"',
                     f'config_type="{_prom_label_escape(config_info["type"])}"',
                 ]

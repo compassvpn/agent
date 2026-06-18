@@ -179,7 +179,6 @@ class XrayConfig:
                 "get_domain response",
                 hypothesisId="DNS",
                 status=response.status_code,
-                body=response.text[:200],
             )
             if response.status_code == 200:
                 self.domain = response.json()["result"]["name"]

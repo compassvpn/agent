@@ -3,7 +3,6 @@ env_file
 .env
 .idea
 .ruff_cache
-.github
 
 # Python bytecode
 __pycache__/

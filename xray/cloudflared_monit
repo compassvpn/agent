@@ -1,3 +1,0 @@
-check process cloudflared with pidfile "/run/cloudflared.pid"
-  start program = "/start_cloudflared.sh"
-  stop program = "/stop_cloudflared.sh"

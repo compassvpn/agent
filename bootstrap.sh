@@ -2,8 +2,8 @@
 
 clear
 
-# Exit on error
-set -e
+# Exit on error, unset vars, and failed pipes
+set -euo pipefail
 
 # Function to check if a command exists
 command_not_exists() {
@@ -47,14 +47,19 @@ install_docker() {
 
 # Generate and add unique identifier
 add_identifier() {
-    if [ -n "$IDENTIFIER" ]; then
+    if [ -n "${IDENTIFIER:-}" ]; then
         echo "Identifier already exists: $IDENTIFIER"
         return 0
     fi
 
     echo "Generating unique identifier..."
-    local identifier=$(head /dev/urandom | tr -dc 'a-zA-Z0-9' | head -c 10)
-    if [ $? -ne 0 ]; then
+    # Declare first, then assign: `local x=$(...)` would hide the pipeline's
+    # exit status behind the (always-0) `local` builtin. `|| true` swallows the
+    # harmless SIGPIPE from `head` closing the pipe early - we validate the
+    # result by checking it's non-empty, which is what actually matters.
+    local identifier
+    identifier=$(head -c 4096 /dev/urandom | tr -dc 'a-zA-Z0-9' | head -c 10) || true
+    if [ -z "$identifier" ]; then
         echo "Error: Failed to generate unique identifier."
         exit 1
     fi
@@ -67,7 +72,7 @@ add_identifier() {
 # Setup cron jobs
 setup_cron() {
     echo "Setting up cron jobs..."
-    ./setup_cron.sh $REDEPLOY_INTERVAL
+    ./setup_cron.sh "${REDEPLOY_INTERVAL:-}"
     echo "Cron setup completed."
 }
 

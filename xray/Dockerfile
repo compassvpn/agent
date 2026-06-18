@@ -9,8 +9,6 @@ RUN wget -O /usr/share/xray/geosite_IR.dat https://github.com/chocolate4u/Iran-v
 
 COPY ./start_xray.sh /start_xray.sh
 COPY ./stop_xray.sh /stop_xray.sh
-COPY ./start_cloudflared.sh /start_cloudflared.sh
-COPY ./stop_cloudflared.sh /stop_cloudflared.sh
 
 COPY wg_monit /wg_monit
 COPY ./xray_monit /etc/monit.d/xray
