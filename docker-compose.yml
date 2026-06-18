@@ -151,7 +151,7 @@ services:
       - /var/log/compassvpn:/var/log/compassvpn:ro
       - "./shared_lib:/shared_lib:ro"
     environment:
-      - LOG_LEVEL=info
+      - LOG_LEVEL=warn   # WARN baseline like the rest of the stack (DEBUG-independent)
       - PYTHONPATH=/
 
   # Runs Grafana Alloy: scrapes the local metrics (node-exporter, xray-config,

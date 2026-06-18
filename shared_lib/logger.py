@@ -55,7 +55,8 @@ except Exception:
     pass
 
 
-log_level = logging.DEBUG if is_debug() else logging.INFO
+# Quiet by default (warnings + errors only); DEBUG=true turns on full verbosity.
+log_level = logging.DEBUG if is_debug() else logging.WARNING
 
 # Configure standard logging for both file and stdout
 logging.basicConfig(
