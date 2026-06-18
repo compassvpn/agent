@@ -3,6 +3,7 @@ import json
 import re
 import string
 from pathlib import Path
+from datetime import datetime, timezone
 from time import sleep
 from typing import Any, Dict, List, Optional
 from urllib.parse import unquote, quote
@@ -120,6 +121,24 @@ def _nginx_location_block(path: str, xray_port: int, template: str) -> str:
             f'    }}'
         )
     return ""
+
+
+def _cert_not_after(cert_file: str) -> Optional[datetime]:
+    """Return a PEM cert's notAfter (UTC), or None if it can't be determined."""
+    result = exec_command(
+        ["openssl", "x509", "-enddate", "-noout", "-in", cert_file],
+        capture_output=True,
+    )
+    if result.returncode != 0 or not result.stdout:
+        return None
+    # stdout looks like: "notAfter=Jun 18 12:00:00 2026 GMT"
+    raw = result.stdout.strip().split("=", 1)[-1].strip()
+    try:
+        return datetime.strptime(raw, "%b %d %H:%M:%S %Y %Z").replace(
+            tzinfo=timezone.utc
+        )
+    except ValueError:
+        return None
 
 
 class XrayConfig:
@@ -337,23 +356,19 @@ class XrayConfig:
                     cert_path = (
                         ACME_SH_PATH / f"{self.direct_subdomain}_ecc" / "fullchain.cer"
                     )
-                    cert_ready = False
                     if cert_path.exists():
                         log.debug("Cert exists, renewing", hypothesisId="CERT")
                         run_acme(
                             f"{ssl_provider_server} --renew --dns dns_cf -d {self.direct_subdomain}"
                         )
-                        cert_ready = True
                     else:
                         log.debug("Cert missing, issuing", hypothesisId="CERT")
                         if run_acme(
                             f"{ssl_provider_server} --register-account -m my@email.com"
                         ):
-                            if run_acme(
+                            if not run_acme(
                                 f"{ssl_provider_server} --issue --dns dns_cf -d {self.direct_subdomain}"
                             ):
-                                cert_ready = True
-                            else:
                                 log.error(
                                     "Failed to issue SSL certificate; TLS inbounds will be skipped",
                                     hypothesisId="CERT",
@@ -437,6 +452,8 @@ class XrayConfig:
         # Drop any inbound whose TLS cert/key resolved to an empty string after
         # variable substitution. An empty cert would make `xray -test` fail and
         # bring down the whole container.
+        warned_certs: set = set()
+
         def _has_valid_tls(inbound_def: Dict[str, Any]) -> bool:
             stream = inbound_def.get("inbound", {}).get("streamSettings", {})
             if stream.get("security") != "tls":
@@ -448,6 +465,29 @@ class XrayConfig:
                     return False
                 if not Path(cert_file).exists() or not Path(key_file).exists():
                     return False
+                # Don't silently serve an expired cert (renewal may be failing).
+                not_after = _cert_not_after(cert_file)
+                if not_after is not None:
+                    days_left = (not_after - datetime.now(timezone.utc)).days
+                    if days_left < 0:
+                        if cert_file not in warned_certs:
+                            warned_certs.add(cert_file)
+                            log.error(
+                                "TLS cert is EXPIRED; skipping its inbound(s) - "
+                                "renewal is failing, check the CF token / acme.sh logs",
+                                hypothesisId="CERT",
+                                cert=cert_file,
+                                not_after=not_after.isoformat(),
+                            )
+                        return False
+                    if days_left < 14 and cert_file not in warned_certs:
+                        warned_certs.add(cert_file)
+                        log.warning(
+                            "TLS cert expires soon; renewal may be failing",
+                            hypothesisId="CERT",
+                            cert=cert_file,
+                            days_left=days_left,
+                        )
             return True
 
         before = len(self.configured_inbounds)
