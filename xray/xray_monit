@@ -1,3 +1,4 @@
 check process xray with pidfile "/run/xray.pid"
   start program = "/start_xray.sh"
   stop program = "/stop_xray.sh"
+  if 5 restarts within 5 cycles then unmonitor

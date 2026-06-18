@@ -60,11 +60,15 @@ if [ "$XRAY_OUTBOUND" = "warp" ]; then
   # Bring up wg interfaces
   for iface in $(echo "$WG_CONFIGS" | jq -r 'keys[]'); do
       echo "Bringing up $iface..."
-      /usr/bin/wg-quick up "$iface" || echo "Warning: Failed to bring up $iface"
-
-      MONIT_CONF_PATH="/etc/monit.d/$iface"
-      cp /wg_monit "$MONIT_CONF_PATH"
-      sed -i "s|\${INTERFACE}|$iface|g" "$MONIT_CONF_PATH"
+      # Only install the monit watchdog if the interface actually came up -
+      # otherwise monit loops forever trying to restart a dead interface.
+      if /usr/bin/wg-quick up "$iface"; then
+          MONIT_CONF_PATH="/etc/monit.d/$iface"
+          cp /wg_monit "$MONIT_CONF_PATH"
+          sed -i "s|\${INTERFACE}|$iface|g" "$MONIT_CONF_PATH"
+      else
+          echo "Warning: Failed to bring up $iface; skipping its monit watchdog"
+      fi
   done
 fi
 
