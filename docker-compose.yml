@@ -150,6 +150,8 @@ services:
     volumes:
       - /var/log/compassvpn:/var/log/compassvpn:ro
       - "./shared_lib:/shared_lib:ro"
+    env_file:
+      - env_file          # entrypoint reads DEBUG from here to pick its log level
     environment:
       - PYTHONPATH=/
 

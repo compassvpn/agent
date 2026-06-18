@@ -7,6 +7,10 @@ RUN apk add --no-cache wget && \
     chmod +x /xray-exporter && \
     apk del wget
 
+COPY entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
+
 EXPOSE 9550
 
-CMD ["/xray-exporter", "--xray-endpoint", "xray:54321", "--log-path", "/var/log/compassvpn/xray_access.log", "--log-level", "warn"]
+# entrypoint picks the --log-level from the DEBUG flag in env_file
+CMD ["/entrypoint.sh"]
