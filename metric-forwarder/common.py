@@ -1,14 +1,47 @@
+from time import sleep
+
 from shared_lib.network import get_public_ip
-from shared_lib.config import load_env
+from shared_lib.config import load_env, get_identifier
+from shared_lib.logger import log
 
 env_config = load_env()
 
-instance_location_info = get_public_ip(extra=True)
-instance_ip = (
-    instance_location_info.get("ip", "Unknown")
-    if isinstance(instance_location_info, dict)
-    else "Unknown"
-)
+# Resolve this node's public IP at startup. Retry a few times so a transient
+# network blip doesn't permanently freeze the label, then fall back to the
+# node's unique identifier - never a colliding "Unknown".
+_IP_RETRIES = 5
+_IP_RETRY_DELAY = 45  # seconds between attempts
+
+
+def _resolve_instance_ip() -> str:
+    for attempt in range(1, _IP_RETRIES + 1):
+        info = get_public_ip(extra=True)
+        ip = info.get("ip") if isinstance(info, dict) else None
+        if ip and ip != "Unknown":
+            return ip
+        log.warning(
+            "Public IP lookup failed; retrying",
+            hypothesisId="NET",
+            attempt=attempt,
+            of=_IP_RETRIES,
+        )
+        if attempt < _IP_RETRIES:
+            sleep(_IP_RETRY_DELAY)
+    # Persistent failure: use the node's unique identifier so metrics stay
+    # distinguishable instead of all colliding on "Unknown".
+    try:
+        fallback = get_identifier()
+    except Exception:
+        fallback = "unknown"
+    log.error(
+        "Public IP unresolved after retries; labeling metrics by identifier",
+        hypothesisId="NET",
+        instance=fallback,
+    )
+    return fallback
+
+
+instance_ip = _resolve_instance_ip()
 
 DONOR = env_config.get("DONOR", "compass")
 
