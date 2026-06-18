@@ -2,7 +2,7 @@
 
 # Configuration variables
 DNS_SERVERS=("1.1.1.2" "127.0.0.53")
-REQUIRED_PORTS=("80" "8080" "443" "2053" "8443" "9100")
+REQUIRED_PORTS=("80" "8080" "443" "2053" "8443")
 SYSCTL_CONF_PATH="/etc/sysctl.d/99-compassvpn.conf"
 
 # Paths

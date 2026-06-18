@@ -72,7 +72,7 @@ prometheus.remote_write "default" {{
 
 prometheus.scrape "node_exporter" {{
   targets = [{{
-    __address__ = "host.docker.internal:9100",
+    __address__ = "node-exporter:9100",
   }}]
   scrape_interval = "5m"
   metrics_path    = "/metrics"
