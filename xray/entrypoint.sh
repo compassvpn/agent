@@ -2,6 +2,12 @@
 
 rm -f /run/*.pid
 
+# Normalize DEBUG (accept True/TRUE/"true") to match the Python services.
+DEBUG=$(printf '%s' "${DEBUG:-false}" | tr -d "\"'" | tr '[:upper:]' '[:lower:]')
+if [ "$DEBUG" = "true" ]; then
+    echo "Debug mode enabled"
+fi
+
 # Mock resolvconf to prevent wg-quick from breaking Docker DNS
 # This keeps the container's /etc/resolv.conf (Docker DNS) intact.
 cat <<EOF > /usr/sbin/resolvconf

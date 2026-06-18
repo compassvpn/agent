@@ -28,4 +28,6 @@ NGINX_FAKE_WEBSITE=www.divar.ir
 
 CUSTOM_DNS=controld
 
+# true = verbose logging across all containers, plus xray DNS-query logging and
+# a debug.log file. Use true/false.
 DEBUG=false

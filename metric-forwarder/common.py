@@ -2,7 +2,7 @@ from time import sleep
 
 from shared_lib.network import get_public_ip
 from shared_lib.config import load_env, get_identifier
-from shared_lib.logger import log
+from shared_lib.logger import log, is_debug
 
 env_config = load_env()
 
@@ -70,7 +70,7 @@ def _river_escape(value: object) -> str:
 
 
 def generate_config() -> None:
-    log_level = "debug" if env_config.get("DEBUG") == "true" else "warn"
+    log_level = "debug" if is_debug() else "warn"
     username = env_config.get(
         "ALLOY_REMOTE_WRITE_USER",
         env_config.get("GRAFANA_AGENT_REMOTE_WRITE_USER", ""),

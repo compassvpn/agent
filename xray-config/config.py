@@ -13,7 +13,7 @@ from shared_lib.network import get_public_ip
 from shared_lib.xray import register_warp, generate_vmess_link
 from shared_lib.config import load_env, get_identifier
 from shared_lib.system import exec_command
-from shared_lib.logger import log
+from shared_lib.logger import log, is_debug
 from shared_lib.paths import (
     ACME_SH_PATH,
     INBOUNDS_JSON,
@@ -270,7 +270,7 @@ class XrayConfig:
             return
 
         self.env_config = load_env()
-        self.is_debug_enabled = self.env_config.get("DEBUG", "false").lower() == "true"
+        self.is_debug_enabled = is_debug()
         log.debug(
             "Loaded env_config", hypothesisId="CFG", keys=list(self.env_config.keys())
         )

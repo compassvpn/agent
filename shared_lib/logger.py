@@ -5,8 +5,14 @@ from typing import List
 from shared_lib.paths import DEBUG_LOG, ENV_FILE
 
 
-def _is_debug_enabled():
-    """Check if debug is enabled in environment or env_file without circular imports."""
+def is_debug() -> bool:
+    """Single source of truth for the DEBUG flag.
+
+    Checked here, the lowest-level module, so every other module can share one
+    definition (env var first, then env_file) without circular imports. Accepts
+    True/TRUE and optionally-quoted values so a stray capital doesn't half-enable
+    debug across the stack.
+    """
     # 1. Check environment
     if os.environ.get("DEBUG", "").lower() == "true":
         return True
@@ -39,16 +45,17 @@ try:
     if log_dir and not os.path.exists(log_dir):
         os.makedirs(log_dir, exist_ok=True)
 
-    # We always attempt to add the file handler if we're in debug mode
-    # or if the file already exists.
-    if _is_debug_enabled() or os.path.isfile(str(DEBUG_LOG)):
+    # Write debug.log only while DEBUG is on. (Previously this also fired when
+    # the file merely existed, so the log kept growing after DEBUG was turned
+    # back off until someone deleted it.)
+    if is_debug():
         handlers.append(logging.FileHandler(str(DEBUG_LOG)))
 except Exception:
     # Fail gracefully if we can't write to the log directory (e.g. permission issues)
     pass
 
 
-log_level = logging.DEBUG if _is_debug_enabled() else logging.INFO
+log_level = logging.DEBUG if is_debug() else logging.INFO
 
 # Configure standard logging for both file and stdout
 logging.basicConfig(
@@ -70,3 +77,7 @@ structlog.configure(
 )
 
 log = structlog.get_logger()
+
+# One line at startup so the operator can confirm the flag actually took effect.
+if is_debug():
+    log.info("Debug logging enabled", hypothesisId="LOG")

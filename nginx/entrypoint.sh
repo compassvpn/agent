@@ -9,8 +9,12 @@ MAX_RETRIES=60
 
 mkdir -p /etc/nginx/conf.d
 
+# Normalize DEBUG (accept True/TRUE/"true") to match the Python services.
+DEBUG=$(printf '%s' "${DEBUG:-false}" | tr -d "\"'" | tr '[:upper:]' '[:lower:]')
+
 NGINX_LOG_LEVEL="warn"
-if [ "${DEBUG:-false}" = "true" ]; then
+if [ "$DEBUG" = "true" ]; then
+    echo "Debug mode enabled"
     NGINX_LOG_LEVEL="debug"
 fi
 
