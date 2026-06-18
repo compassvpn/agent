@@ -198,6 +198,7 @@ services:
       - "--log.level=warn"
       - "--path.procfs=/host/proc"
       - "--path.sysfs=/host/sys"
+      - "--path.rootfs=/rootfs" # statfs the host filesystems via the mounted root, not the container's
       # only collect what we actually graph - everything else stays off
       - '--collector.disable-defaults'
       - '--collector.uname'
