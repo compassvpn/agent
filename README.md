@@ -34,11 +34,6 @@ Ensure you obtain the authentication values from the manager setup. These values
 ./restart.sh
 ```
 
-### Start the Panel
-```bash
-./start_panel.sh
-```
-
 ### View Configuration Links:
 ```bash
 ./show_configs.sh

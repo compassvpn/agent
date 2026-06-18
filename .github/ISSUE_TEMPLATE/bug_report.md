@@ -28,7 +28,7 @@ If applicable, add screenshots to help explain your problem.
 
 *   **Server OS:** [e.g., Ubuntu 24.04]
 *   **Modifications:**
-    *   Did you modify `env_file` manually or from web panel?
+    *   Did you modify `env_file` manually?
     *   Did you modify any core configuration files (e.g., `xray-config`, `nginx`, ...)? [Yes/No - If Yes, please briefly describe]
     *   Did you modify any scripts? [Yes/No - If Yes, please specify which script(s)]
 
