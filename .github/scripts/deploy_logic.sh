@@ -101,8 +101,10 @@ ref_arg_quoted=$(printf %q "$GITHUB_REF_NAME")
 debug_flag_quoted=$(printf %q "$DEBUG_LOGS")
 
 # --- Execute the remote script ---
-# '; exit $?' ensures the remote shell exits with the script's status
-remote_script_execution_command="bash -s -- $repo_arg_quoted $ref_arg_quoted $debug_flag_quoted; exit $?"
+# '; exit \$?' - escaped so $? is evaluated on the REMOTE shell (the bootstrap's
+# real status). Unescaped, it would expand locally on the runner (always 0) and
+# mask every remote failure.
+remote_script_execution_command="bash -s -- $repo_arg_quoted $ref_arg_quoted $debug_flag_quoted; exit \$?"
 
 echo "Executing remote script ($LOCAL_SCRIPT_PATH) via stdin pipe..."
 
