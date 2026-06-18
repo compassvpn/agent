@@ -20,6 +20,22 @@ if remote_write_url and not remote_write_url.endswith("/push"):
     remote_write_url += "/push"
 
 
+def _river_escape(value: object) -> str:
+    """Escape a value for safe inclusion inside a River double-quoted string.
+
+    Without this, a stray quote/newline/brace in an interpolated value could
+    terminate its string literal and inject arbitrary Alloy components.
+    """
+    return (
+        str(value)
+        .replace("\\", "\\\\")
+        .replace('"', '\\"')
+        .replace("\n", "\\n")
+        .replace("\r", "\\r")
+        .replace("\t", "\\t")
+    )
+
+
 def generate_config() -> None:
     log_level = "debug" if env_config.get("DEBUG") == "true" else "warn"
     username = env_config.get(
@@ -31,13 +47,22 @@ def generate_config() -> None:
         env_config.get("GRAFANA_AGENT_REMOTE_WRITE_PASSWORD", ""),
     )
 
+    # Escape every interpolated value. instance_ip in particular originates
+    # from a third-party geo-IP response and is otherwise attacker-influenceable.
+    log_level = _river_escape(log_level)
+    username = _river_escape(username)
+    password = _river_escape(password)
+    url = _river_escape(remote_write_url)
+    donor = _river_escape(DONOR)
+    instance = _river_escape(instance_ip)
+
     config = f"""logging {{
   level = "{log_level}"
 }}
 
 prometheus.remote_write "default" {{
   endpoint {{
-    url = "{remote_write_url}"
+    url = "{url}"
     basic_auth {{
       username = "{username}"
       password = "{password}"
@@ -67,11 +92,11 @@ prometheus.relabel "node_exporter" {{
   }}
   rule {{
     target_label = "donor"
-    replacement  = "{DONOR}"
+    replacement  = "{donor}"
   }}
   rule {{
     target_label = "instance"
-    replacement  = "{instance_ip}"
+    replacement  = "{instance}"
   }}
   forward_to = [prometheus.remote_write.default.receiver]
 }}
@@ -88,11 +113,11 @@ prometheus.scrape "xray" {{
 prometheus.relabel "xray" {{
   rule {{
     target_label = "donor"
-    replacement  = "{DONOR}"
+    replacement  = "{donor}"
   }}
   rule {{
     target_label = "instance"
-    replacement  = "{instance_ip}"
+    replacement  = "{instance}"
   }}
   forward_to = [prometheus.remote_write.default.receiver]
 }}
@@ -114,11 +139,11 @@ prometheus.relabel "xray_exporter" {{
   }}
   rule {{
     target_label = "donor"
-    replacement  = "{DONOR}"
+    replacement  = "{donor}"
   }}
   rule {{
     target_label = "instance"
-    replacement  = "{instance_ip}"
+    replacement  = "{instance}"
   }}
   forward_to = [prometheus.remote_write.default.receiver]
 }}

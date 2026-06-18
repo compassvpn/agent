@@ -11,6 +11,16 @@ from shared_lib.xray import parse_config_link
 from shared_lib.paths import CONFIGS_CSV, VALID_CSV, ACME_SH_PATH
 
 
+def _prom_label_escape(value: object) -> str:
+    """Escape a value for a Prometheus exposition-format label value.
+
+    Label values must escape backslash, double-quote, and newline; otherwise an
+    untrusted value such as the geo-IP-derived country (or a crafted config
+    link) could corrupt the exposition output or inject extra labels/series.
+    """
+    return str(value).replace("\\", "\\\\").replace('"', '\\"').replace("\n", "\\n")
+
+
 class XrayService:
     def __init__(self) -> None:
         self.app: Flask = Flask(__name__)
@@ -90,16 +100,16 @@ class XrayService:
 
                 config_info = parse_config_link(config_link)
                 labels = [
-                    f'config_link="{config_link}"',
-                    f'config_name="{config_info["name"]}"',
-                    f'machine_id="{get_machine_id()}"',
-                    f'ip="{instance_ip}"',
-                    f'country="{instance_country}"',
-                    f'config_protocol="{config_info["protocol"]}"',
-                    f'config_host="{config_info["host"]}"',
-                    f'config_port="{config_info["port"]}"',
-                    f'config_security="{config_info["security"]}"',
-                    f'config_type="{config_info["type"]}"',
+                    f'config_link="{_prom_label_escape(config_link)}"',
+                    f'config_name="{_prom_label_escape(config_info["name"])}"',
+                    f'machine_id="{_prom_label_escape(get_machine_id())}"',
+                    f'ip="{_prom_label_escape(instance_ip)}"',
+                    f'country="{_prom_label_escape(instance_country)}"',
+                    f'config_protocol="{_prom_label_escape(config_info["protocol"])}"',
+                    f'config_host="{_prom_label_escape(config_info["host"])}"',
+                    f'config_port="{_prom_label_escape(config_info["port"])}"',
+                    f'config_security="{_prom_label_escape(config_info["security"])}"',
+                    f'config_type="{_prom_label_escape(config_info["type"])}"',
                 ]
                 inline_labels = ",".join(labels)
                 t = f"vpn_config{{{inline_labels}}}"
