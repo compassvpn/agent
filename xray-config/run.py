@@ -170,7 +170,7 @@ class XrayService:
                     break
                 continue
 
-            with open(CONFIGS_CSV, "w") as configs_csv:
+            with open(CONFIGS_CSV, "w", encoding="utf-8") as configs_csv:
                 configs_csv.write("\n".join(valid_links))
 
             exec_command(["cat", str(CONFIGS_CSV)])
@@ -254,7 +254,7 @@ class XrayService:
                     # Write a flag file so that nginx can detect the renewal and reload.
                     try:
                         flag_path = "/var/log/compassvpn/.cert_renewed"
-                        with open(flag_path, "w") as f:
+                        with open(flag_path, "w", encoding="utf-8") as f:
                             import time as _time
                             f.write(str(_time.time()))
                         log.info(

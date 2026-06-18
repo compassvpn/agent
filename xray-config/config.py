@@ -400,7 +400,7 @@ class XrayConfig:
                 return string.Template(data).safe_substitute(mapping)
             return data
 
-        with open(INBOUNDS_JSON) as f:
+        with open(INBOUNDS_JSON, encoding="utf-8") as f:
             raw_inbounds = json.load(f)
             all_inbounds = substitute_vars(
                 raw_inbounds,

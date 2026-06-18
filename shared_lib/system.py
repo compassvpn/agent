@@ -10,7 +10,7 @@ def get_machine_id() -> str:
     paths = ["/host/etc/machine-id", "/etc/machine-id"]
     for path in paths:
         if os.path.exists(path):
-            with open(path, "r") as f:
+            with open(path, "r", encoding="utf-8") as f:
                 machine_id = f.read().strip()
                 log.debug(
                     "Machine ID retrieved",
@@ -69,7 +69,7 @@ def csv_to_dict(filename: str) -> Dict[str, List[str]]:
     data = {}
     if os.path.exists(filename):
         try:
-            with open(filename, "r") as f:
+            with open(filename, "r", encoding="utf-8") as f:
                 for line in f:
                     line = line.strip()
                     if not line:

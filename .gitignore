@@ -4,3 +4,7 @@ env_file
 .idea
 .ruff_cache
 .github
+
+# Python bytecode
+__pycache__/
+*.pyc

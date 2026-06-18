@@ -181,5 +181,5 @@ prometheus.relabel "xray_exporter" {{
   forward_to = [prometheus.remote_write.default.receiver]
 }}
 """
-    with open("config.alloy", "w") as f:
+    with open("config.alloy", "w", encoding="utf-8") as f:
         f.write(config)

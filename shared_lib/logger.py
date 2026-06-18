@@ -14,7 +14,7 @@ def _is_debug_enabled():
     # 2. Check env_file manually
     if os.path.exists(str(ENV_FILE)):
         try:
-            with open(str(ENV_FILE), "r") as f:
+            with open(str(ENV_FILE), "r", encoding="utf-8") as f:
                 for line in f:
                     # Robust check for DEBUG=true (handles spaces, optional quotes, etc.)
                     line = line.strip()
