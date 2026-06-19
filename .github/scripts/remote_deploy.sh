@@ -1,5 +1,5 @@
 #!/bin/bash
-# Executed on the remote server via SSH.
+# Runs on the remote server via SSH: fresh-clone the repo, write env_file, deploy with agent.sh.
 
 set -e
 

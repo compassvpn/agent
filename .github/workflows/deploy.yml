@@ -91,7 +91,7 @@ jobs:
           GITHUB_REPOSITORY: ${{ github.repository }}
           GITHUB_REF_NAME: ${{ github.ref_name }}
           DEBUG_LOGS: ${{ github.event.inputs.debug_logs }}
-          # Pass the path to the *other* script (remote_bootstrap.sh) as an env var
-          LOCAL_SCRIPT_PATH: ".github/scripts/remote_bootstrap.sh"
+          # Pass the path to the *other* script (remote_deploy.sh) as an env var
+          LOCAL_SCRIPT_PATH: ".github/scripts/remote_deploy.sh"
         run: bash .github/scripts/deploy_logic.sh
         shell: bash

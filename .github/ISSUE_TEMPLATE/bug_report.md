@@ -34,7 +34,7 @@ If applicable, add screenshots to help explain your problem.
 
 
 **Logs**
-Please run `./logs` and then paste the output here. Use code blocks.
+Please run `./agent.sh logs` and then paste the output here. Use code blocks.
 
 
 **Additional context**

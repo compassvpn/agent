@@ -101,7 +101,7 @@ ref_arg_quoted=$(printf %q "$GITHUB_REF_NAME")
 debug_flag_quoted=$(printf %q "$DEBUG_LOGS")
 
 # --- Execute the remote script ---
-# '; exit \$?' - escaped so $? is evaluated on the REMOTE shell (the bootstrap's
+# '; exit \$?' - escaped so $? is evaluated on the REMOTE shell (the remote script's
 # real status). Unescaped, it would expand locally on the runner (always 0) and
 # mask every remote failure.
 remote_script_execution_command="bash -s -- $repo_arg_quoted $ref_arg_quoted $debug_flag_quoted; exit \$?"
