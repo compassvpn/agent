@@ -40,12 +40,15 @@ start() {
     # Pull in the two operational knobs the playbook needs for cron (not secrets).
     source env_file
 
+    # uv installs to ~/.local/bin; put that on PATH unconditionally so an already
+    # installed uv is found even under cron's minimal PATH (rather than re-downloaded).
+    export PATH="$HOME/.local/bin:$PATH"
+
     # Ansible's controller needs Python 3.12+, newer than these releases ship;
     # uv fetches a suitable one itself, so we only need uv on the box.
     if command_not_exists uv; then
         echo "Installing uv..."
         curl -LsSf https://astral.sh/uv/install.sh | sh
-        export PATH="$HOME/.local/bin:$PATH"
     fi
 
     # Run Ansible from the pinned toolchain in pyproject.toml / uv.lock, so every
@@ -72,7 +75,7 @@ stop() {
 update() {
     set -euo pipefail
 
-    git fetch
+    git fetch || { echo "git fetch failed; skipping update."; exit 0; }
     local head upstream
     head=$(git rev-parse @)
     # Bail out cleanly if this checkout has no upstream (e.g. a detached deploy).

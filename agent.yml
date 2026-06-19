@@ -34,6 +34,7 @@
       - 443
       - 2053
       - 8443
+      - 8880
 
     sysctl_conf_path: /etc/sysctl.d/99-compassvpn.conf
     sysctl_settings:

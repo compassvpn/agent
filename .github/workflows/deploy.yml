@@ -1,11 +1,11 @@
-name: Run Bootstrap Script Remotely
+name: Deploy Agent Remotely
 
 on:
   workflow_dispatch: # Allows manual triggering
     # Add an input to control debug logging visibility
     inputs:
       debug_logs:
-        description: 'Show bootstrap.sh logs (true/false)'
+        description: 'Show remote deploy (SSH) logs (true/false)'
         required: false
         default: false
         type: boolean
@@ -81,7 +81,7 @@ jobs:
         uses: actions/checkout@v3
 
       # Main execution step, now runs once per server from the matrix
-      - name: Connect, Update Repo, and Run Bootstrap
+      - name: Connect, Update Repo, and Deploy
         env:
           # Pass matrix index and secrets/inputs as environment variables to the script
           SERVER_INDEX: ${{ matrix.index }}

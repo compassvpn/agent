@@ -6,8 +6,6 @@ ROOT_DIR = Path(__file__).parent.parent.absolute()
 # Common file paths
 ENV_FILE = ROOT_DIR / "env_file"
 INBOUNDS_JSON = ROOT_DIR / "xray-config" / "inbounds.json"
-BOOTSTRAP_SCRIPT = ROOT_DIR / "bootstrap.sh"
-RESTART_SCRIPT = ROOT_DIR / "restart.sh"
 CONFIGS_CSV = ROOT_DIR / "configs.csv"
 VALID_CSV = ROOT_DIR / "valid.csv"
 ACME_DIR = ROOT_DIR / "acme"
