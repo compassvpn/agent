@@ -31,6 +31,14 @@ check_env_file() {
 
 # Prepare the VM
 prepare_vm() {
+    # Ansible's controller needs a newer Python than Debian 12 / Ubuntu 22.04 ship;
+    # uv fetches a suitable one itself, so we only need uv on the box - install it
+    # if it's missing, then run the playbook through uvx.
+    if command_not_exists uvx; then
+        echo "Installing uv..."
+        curl -LsSf https://astral.sh/uv/install.sh | sh
+        export PATH="$HOME/.local/bin:$PATH"
+    fi
     uvx --from ansible@13.4.0 ansible-playbook prepare.yaml
 }
 
