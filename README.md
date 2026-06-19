@@ -53,8 +53,9 @@ Two files drive everything:
 
 - **`agent.sh`** is the launcher you run. It makes sure [`uv`](https://docs.astral.sh/uv/)
   is installed (Ansible needs a newer Python than Debian 12 / Ubuntu 22.04 ship, and
-  `uv` fetches one on its own, so there's nothing system-wide to manage), then hands off
-  to the playbook.
+  `uv` fetches one on its own, so there's nothing system-wide to manage), then runs the
+  playbook from a pinned toolchain (`pyproject.toml` plus `uv.lock`) so every server gets
+  the exact same Ansible and dependency versions.
 - **`agent.yml`** is a single Ansible playbook that provisions the host and deploys the
   stack, in stages.
 
@@ -72,7 +73,11 @@ Two files drive everything:
 
 It's **idempotent**, so re-running `./agent.sh start` only changes what has drifted
 (usually just a container rebuild). Each stage is also a tag, so you can run one on its
-own, for example `uvx --from ansible@14.0.0 ansible-playbook agent.yml --tags deploy`.
+own, for example `uv run --frozen ansible-playbook agent.yml --tags deploy`.
+
+The Ansible version is pinned in `pyproject.toml` and locked in `uv.lock`. To move to a
+newer Ansible, bump it there and run `uv lock`; to refresh the pinned dependencies without
+changing Ansible, run `uv lock --upgrade`. Commit both files either way.
 
 ## The stack
 

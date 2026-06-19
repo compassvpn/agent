@@ -7,3 +7,7 @@ env_file
 # Python bytecode
 __pycache__/
 *.pyc
+
+# uv's local virtualenv (recreated from uv.lock; not committed)
+.venv/
+.python-version

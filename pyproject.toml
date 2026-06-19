@@ -1,0 +1,19 @@
+# This project doesn't ship Python code. It exists only to pin the Ansible
+# toolchain that provisions the host, so every server gets the same versions.
+# agent.sh runs the playbook through uv against the lock below.
+#
+# To move to a newer Ansible: bump the version here, run `uv lock`, commit both files.
+# To refresh transitive deps (security/bug fixes) without changing Ansible: `uv lock --upgrade`.
+
+[project]
+name = "compassvpn-agent"
+version = "0"
+description = "Pinned Ansible toolchain for provisioning the CompassVPN agent host."
+requires-python = ">=3.12"
+dependencies = [
+    "ansible==14.0.0",
+]
+
+[tool.uv]
+# We only want the dependencies, not to build/install this directory as a package.
+package = false

@@ -42,14 +42,16 @@ start() {
 
     # Ansible's controller needs a newer Python than Debian 12 / Ubuntu 22.04 ship;
     # uv fetches a suitable one itself, so we only need uv on the box.
-    if command_not_exists uvx; then
+    if command_not_exists uv; then
         echo "Installing uv..."
         curl -LsSf https://astral.sh/uv/install.sh | sh
         export PATH="$HOME/.local/bin:$PATH"
     fi
 
+    # Run Ansible from the pinned toolchain in pyproject.toml / uv.lock, so every
+    # server gets the exact same versions. --frozen uses the committed lock as-is.
     echo "Converging the host with Ansible..."
-    uvx --from ansible@14.0.0 ansible-playbook agent.yml \
+    uv run --frozen ansible-playbook agent.yml \
         -e "auto_update=${AUTO_UPDATE:-}" \
         -e "redeploy_interval=${REDEPLOY_INTERVAL:-}"
 
