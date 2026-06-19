@@ -74,7 +74,7 @@
     - name: Check supported OS family
       ansible.builtin.assert:
         that:
-          - ansible_distribution | lower in ['ubuntu', 'debian']
+          - ansible_facts['distribution'] | lower in ['ubuntu', 'debian']
         fail_msg: "This playbook only supports Debian/Ubuntu."
       tags: always
 
@@ -107,10 +107,12 @@
               - logrotate
             state: present
 
-        - name: Fail early if a required port is already in use
+        # Only a foreign process is a conflict - our own published ports show up as
+        # docker-proxy, so filter those out (lets re-runs on a live box pass).
+        - name: Fail early if a required port is held by a non-Docker process
           ansible.builtin.shell: |
             set -o pipefail
-            ss -tlpnH "sport = :{{ item }}"
+            ss -tlpnH "sport = :{{ item }}" | grep -v docker-proxy || true
           args:
             executable: /bin/bash
           register: port_check
@@ -124,7 +126,7 @@
           ansible.builtin.lineinfile:
             path: /etc/hosts
             regexp: '^127\.0\.1\.1\s'
-            line: "127.0.1.1 {{ ansible_hostname }}"
+            line: "127.0.1.1 {{ ansible_facts['hostname'] }}"
             state: present
 
         - name: Probe configured DNS servers
