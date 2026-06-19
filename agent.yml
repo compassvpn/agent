@@ -264,16 +264,6 @@
           loop_control:
             label: "{{ item.0 }}/{{ item.1 }}"
 
-        - name: Remove legacy port 9100 from the host firewall
-          community.general.ufw:
-            rule: allow
-            port: "9100"
-            proto: "{{ item }}"
-            delete: true
-          loop:
-            - tcp
-            - udp
-
         - name: Enable UFW
           community.general.ufw:
             state: enabled
