@@ -30,8 +30,13 @@ Ensure you obtain the authentication values from the manager setup. These values
 ```
 
 ### Rebuild and restart all services:
+Re-running the bootstrap is safe and reconverges everything:
 ```bash
-./restart.sh
+./bootstrap.sh
+```
+Or rebuild and restart only the containers:
+```bash
+uvx --from ansible@13.4.0 ansible-playbook agent.yml --tags deploy
 ```
 
 ### View Configuration Links:

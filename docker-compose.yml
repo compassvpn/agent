@@ -15,11 +15,11 @@ x-public-tuned: &public-tuned
       soft: 65535
       hard: 65535
   # These sysctls are per-network-namespace, so they apply only inside the
-  # container - intentionally separate from the host values in prepare_vm.sh
+  # container - intentionally separate from the host values in agent.yml
   # (don't delete them thinking they're duplicates).
   sysctls:
     - net.core.somaxconn=8192
-    - net.ipv4.tcp_max_syn_backlog=10240   # match the host value in prepare_vm.sh
+    - net.ipv4.tcp_max_syn_backlog=10240   # match the host value in agent.yml
     - net.ipv4.tcp_fin_timeout=25
   logging:
     driver: "json-file"

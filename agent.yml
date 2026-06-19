@@ -1,0 +1,442 @@
+---
+# One playbook for the whole CompassVPN host. Run it all (bootstrap.sh does this),
+# or a single stage with tags, e.g. only redeploy:
+#   uvx --from ansible@13.4.0 ansible-playbook agent.yml --tags deploy
+# Stages (tags): prepare, docker, identifier, cron, deploy.
+- name: Provision and deploy the CompassVPN host
+  hosts: localhost
+  connection: local
+  become: true
+  gather_facts: false   # gathered explicitly, after we ensure python3 exists
+
+  vars:
+    # Modules run on this same box (connection: local); pin the target interpreter
+    # so they don't fall back to a non-existent /usr/bin/python.
+    ansible_python_interpreter: /usr/bin/python3
+    project_dir: "{{ playbook_dir }}"
+
+    # Operational knobs. bootstrap.sh passes these in from env_file; defaults are
+    # "off" so a bare run never schedules cron jobs.
+    auto_update: ""
+    redeploy_interval: ""
+
+    # Upstream DNS resolvers, in priority order. Each is probed first and only the
+    # reachable ones are applied, so we never replace working DNS with dead entries.
+    dns_servers:
+      - "1.1.1.2"
+      - "127.0.0.53"
+
+    # Ports opened on the host firewall. 9100 (node-exporter) is intentionally NOT
+    # here - it's reached only over the internal Docker network, never the host.
+    required_ports:
+      - 80
+      - 8080
+      - 443
+      - 2053
+      - 8443
+
+    sysctl_conf_path: /etc/sysctl.d/99-compassvpn.conf
+    sysctl_settings:
+      fs.file-max: "67108864"
+      net.core.default_qdisc: "fq"
+      net.core.optmem_max: "262144"
+      net.core.rmem_max: "33554432"
+      net.core.wmem_max: "33554432"
+      net.ipv4.tcp_congestion_control: "bbr"
+      net.ipv4.tcp_max_syn_backlog: "10240"
+      net.ipv4.tcp_fin_timeout: "25"
+      net.core.netdev_max_backlog: "32768"
+      net.netfilter.nf_conntrack_max: "1048576"
+      net.netfilter.nf_conntrack_buckets: "262144"
+
+    compassvpn_log_path: /var/log/compassvpn
+    compassvpn_log_files:
+      - nginx_access.log
+      - nginx_error.log
+      - xray_access.log
+      - xray_error.log
+      - xray.log
+      - debug.log
+
+  tasks:
+    # ---- prerequisites (run under every tag) -------------------------------
+    # Minimal images can ship without python3 / python3-apt, which Ansible's setup
+    # and apt modules need. Bootstrap them with raw (needs no python on the target).
+    - name: Ensure python3 and python3-apt are present
+      ansible.builtin.raw: dpkg -s python3 python3-apt >/dev/null 2>&1 || (apt-get update && apt-get install -y python3 python3-apt)
+      changed_when: false
+      tags: always
+
+    - name: Gather facts
+      ansible.builtin.setup: {}
+      tags: always
+
+    - name: Check supported OS family
+      ansible.builtin.assert:
+        that:
+          - ansible_distribution | lower in ['ubuntu', 'debian']
+        fail_msg: "This playbook only supports Debian/Ubuntu."
+      tags: always
+
+    # ---- prepare: host packages, DNS, tuning, firewall, logs ---------------
+    - name: Prepare the host
+      tags: prepare
+      block:
+        - name: Detect OpenVZ (its kernel can't take the sysctl tuning)
+          ansible.builtin.stat:
+            path: /proc/user_beancounters
+          register: openvz_file
+
+        - name: Note when OpenVZ is detected
+          ansible.builtin.debug:
+            msg: "OpenVZ detected - skipping kernel/sysctl tuning."
+          when: openvz_file.stat.exists
+
+        - name: Install base packages
+          ansible.builtin.apt:
+            update_cache: true
+            cache_valid_time: 3600
+            name:
+              - curl
+              - wget
+              - sudo
+              - coreutils
+              - iproute2
+              - lsof
+              - ufw
+              - logrotate
+            state: present
+
+        - name: Fail early if a required port is already in use
+          ansible.builtin.shell: |
+            set -o pipefail
+            ss -tlpnH "sport = :{{ item }}"
+          args:
+            executable: /bin/bash
+          register: port_check
+          changed_when: false
+          failed_when: port_check.stdout | trim | length > 0
+          loop: "{{ required_ports }}"
+          loop_control:
+            label: "{{ item }}"
+
+        - name: Ensure hostname entry exists in /etc/hosts
+          ansible.builtin.lineinfile:
+            path: /etc/hosts
+            regexp: '^127\.0\.1\.1\s'
+            line: "127.0.1.1 {{ ansible_hostname }}"
+            state: present
+
+        - name: Probe configured DNS servers
+          ansible.builtin.command: "ping -c1 -W1 {{ item }}"
+          register: dns_ping
+          changed_when: false
+          failed_when: false
+          loop: "{{ dns_servers }}"
+          loop_control:
+            label: "{{ item }}"
+
+        - name: Keep only the reachable DNS servers
+          ansible.builtin.set_fact:
+            reachable_dns: "{{ dns_ping.results | selectattr('rc', 'equalto', 0) | map(attribute='item') | list }}"
+
+        - name: Back up /etc/resolv.conf once
+          ansible.builtin.copy:
+            src: /etc/resolv.conf
+            dest: /etc/resolv.conf.bak
+            remote_src: true
+            mode: "0644"
+            force: false
+          when: reachable_dns | length > 0
+
+        - name: Write reachable DNS servers to /etc/resolv.conf
+          ansible.builtin.copy:
+            dest: /etc/resolv.conf
+            mode: "0644"
+            content: |
+              {% for dns in reachable_dns %}
+              nameserver {{ dns }}
+              {% endfor %}
+          when: reachable_dns | length > 0
+
+        - name: Warn when no DNS server is reachable (leaving resolv.conf untouched)
+          ansible.builtin.debug:
+            msg: "None of {{ dns_servers }} responded - /etc/resolv.conf left as-is."
+          when: reachable_dns | length == 0
+
+        - name: Set timezone to UTC
+          community.general.timezone:
+            name: Etc/UTC
+
+        - name: Load nf_conntrack (needed by the conntrack sysctls)
+          community.general.modprobe:
+            name: nf_conntrack
+            state: present
+          failed_when: false
+          when: not openvz_file.stat.exists
+
+        - name: Apply sysctl tuning
+          ansible.posix.sysctl:
+            name: "{{ item.key }}"
+            value: "{{ item.value }}"
+            sysctl_file: "{{ sysctl_conf_path }}"
+            sysctl_set: true
+            reload: false
+            ignoreerrors: true   # don't abort on a key the kernel won't take (e.g. conntrack on some kernels)
+            state: present
+          loop: "{{ sysctl_settings | dict2items }}"
+          loop_control:
+            label: "{{ item.key }}"
+          when: not openvz_file.stat.exists
+
+        - name: Reload sysctl from all config files
+          ansible.builtin.command: sysctl --system
+          changed_when: false
+          when: not openvz_file.stat.exists
+
+        - name: Remove firewalld if present (conflicts with UFW)
+          ansible.builtin.apt:
+            name: firewalld
+            state: absent
+            purge: true
+
+        - name: Point UFW at the system sysctl file
+          ansible.builtin.replace:
+            path: /etc/default/ufw
+            regexp: '/etc/ufw/sysctl\.conf'
+            replace: '/etc/sysctl.conf'
+
+        - name: Detect the active SSH port
+          ansible.builtin.shell: |
+            set -o pipefail
+            ss -tlnpH | grep -oP '(?<=:)\d+(?= .*sshd)' | head -n1
+          args:
+            executable: /bin/bash
+          register: active_ssh_port
+          changed_when: false
+          failed_when: false
+
+        - name: Fall back to the configured SSH port (sshd_config + drop-ins)
+          ansible.builtin.shell: |
+            set -o pipefail
+            grep -rhoP '^Port\s+\K\d+' /etc/ssh/sshd_config /etc/ssh/sshd_config.d/ 2>/dev/null | head -n1
+          args:
+            executable: /bin/bash
+          register: configured_ssh_port
+          changed_when: false
+          failed_when: false
+          when: (active_ssh_port.stdout | trim) == ''
+
+        - name: Settle on the SSH port (active -> configured -> 22)
+          ansible.builtin.set_fact:
+            ssh_port: >-
+              {{
+                (active_ssh_port.stdout | trim)
+                if (active_ssh_port.stdout | trim) != ''
+                else ((configured_ssh_port.stdout | default('') | trim) or '22')
+              }}
+
+        # Allow SSH BEFORE enabling so the deploy connection is never cut off.
+        - name: Allow the SSH port in UFW
+          community.general.ufw:
+            rule: allow
+            port: "{{ ssh_port }}"
+            proto: tcp
+
+        - name: Default deny incoming
+          community.general.ufw:
+            direction: incoming
+            policy: deny
+
+        - name: Default allow outgoing
+          community.general.ufw:
+            direction: outgoing
+            policy: allow
+
+        - name: Allow the required service ports (tcp + udp)
+          community.general.ufw:
+            rule: allow
+            port: "{{ item.0 }}"
+            proto: "{{ item.1 }}"
+          loop: "{{ required_ports | product(['tcp', 'udp']) | list }}"
+          loop_control:
+            label: "{{ item.0 }}/{{ item.1 }}"
+
+        - name: Remove legacy port 9100 from the host firewall
+          community.general.ufw:
+            rule: allow
+            port: "9100"
+            proto: "{{ item }}"
+            delete: true
+          loop:
+            - tcp
+            - udp
+
+        - name: Enable UFW
+          community.general.ufw:
+            state: enabled
+
+        - name: Ensure CompassVPN log directory exists
+          ansible.builtin.file:
+            path: "{{ compassvpn_log_path }}"
+            state: directory
+            owner: root
+            group: root
+            mode: "0750"
+
+        - name: Ensure CompassVPN log files exist
+          ansible.builtin.file:
+            path: "{{ compassvpn_log_path }}/{{ item }}"
+            state: touch
+            owner: root
+            group: root
+            mode: "0640"
+            modification_time: preserve
+            access_time: preserve
+          loop: "{{ compassvpn_log_files }}"
+
+        - name: Ensure Nginx log directory exists
+          ansible.builtin.file:
+            path: /var/log/nginx
+            state: directory
+            mode: "0755"
+
+        - name: Ensure Nginx error log exists
+          ansible.builtin.file:
+            path: /var/log/nginx/error.log
+            state: touch
+            owner: root
+            group: root
+            mode: "0640"
+            modification_time: preserve
+            access_time: preserve
+
+        - name: Configure CompassVPN logrotate
+          ansible.builtin.copy:
+            dest: /etc/logrotate.d/compassvpn
+            mode: "0644"
+            content: |
+              /var/log/compassvpn/*.log {
+                  size 500M
+                  rotate 2
+                  compress
+                  delaycompress
+                  missingok
+                  notifempty
+                  copytruncate
+                  dateext
+                  dateformat -%Y%m%d-%s
+              }
+
+        - name: Enable and start logrotate.timer when available
+          ansible.builtin.systemd_service:
+            name: logrotate.timer
+            enabled: true
+            state: started
+          failed_when: false
+
+        - name: Validate the logrotate config (dry run, no rotation)
+          ansible.builtin.command: logrotate -d /etc/logrotate.d/compassvpn
+          changed_when: false
+          failed_when: false
+
+    # ---- docker ------------------------------------------------------------
+    - name: Install Docker
+      tags: docker
+      block:
+        - name: Check whether Docker is installed
+          ansible.builtin.command: docker --version
+          register: docker_check
+          changed_when: false
+          failed_when: false
+
+        - name: Install Docker via the official convenience script
+          ansible.builtin.shell: curl -fsSL https://get.docker.com | sh
+          args:
+            executable: /bin/bash
+          when: docker_check.rc != 0
+
+    # ---- identifier: a stable per-node label, generated once ---------------
+    # Also tagged 'deploy' so a deploy-only run can't start containers without an
+    # IDENTIFIER (the services hard-fail if it's missing). It's a no-op once set.
+    - name: Ensure a unique node identifier
+      tags: [identifier, deploy]
+      block:
+        - name: Check for an existing identifier in env_file
+          ansible.builtin.command: grep -q '^IDENTIFIER=' env_file
+          args:
+            chdir: "{{ project_dir }}"
+          register: identifier_check
+          changed_when: false
+          failed_when: false
+
+        - name: Generate and store a unique identifier
+          ansible.builtin.shell: |
+            set -o pipefail
+            id="$(head -c 4096 /dev/urandom | tr -dc 'a-zA-Z0-9' | head -c 10)"
+            [ -n "$id" ] || { echo "failed to generate identifier" >&2; exit 1; }
+            printf '\nIDENTIFIER=%s\n' "$id" >> env_file
+          args:
+            chdir: "{{ project_dir }}"
+            executable: /bin/bash
+          when: identifier_check.rc != 0
+
+    # ---- cron: renewal + optional auto-update ------------------------------
+    - name: Configure cron jobs
+      tags: cron
+      block:
+        - name: Ensure cron is installed
+          ansible.builtin.apt:
+            name: cron
+            state: present
+
+        - name: Ensure the cron service is enabled and running
+          ansible.builtin.systemd_service:
+            name: cron
+            enabled: true
+            state: started
+
+        - name: Schedule periodic redeploy / cert renewal
+          ansible.builtin.cron:
+            name: compassvpn-renewal
+            minute: "0"
+            hour: "0"
+            day: "{{ ('*/' ~ redeploy_interval[:-1]) if redeploy_interval.endswith('d') else '1' }}"
+            month: "{{ ('*/' ~ redeploy_interval[:-1]) if redeploy_interval.endswith('m') else '*' }}"
+            job: "cd {{ project_dir }} && ./bootstrap.sh"
+          when:
+            - redeploy_interval | length > 0
+            - redeploy_interval is match('^[0-9]+[dm]$')
+
+        - name: Remove the redeploy job when no valid interval is set
+          ansible.builtin.cron:
+            name: compassvpn-renewal
+            state: absent
+          when: (redeploy_interval | length == 0) or not (redeploy_interval is match('^[0-9]+[dm]$'))
+
+        - name: Schedule the hourly auto-update check
+          ansible.builtin.cron:
+            name: compassvpn-auto-update
+            minute: "0"
+            job: "cd {{ project_dir }} && ./check_update.sh"
+          when: auto_update | lower == 'on'
+
+        - name: Remove the auto-update check when disabled
+          ansible.builtin.cron:
+            name: compassvpn-auto-update
+            state: absent
+          when: auto_update | lower != 'on'
+
+    # ---- deploy: build + (re)start the stack -------------------------------
+    - name: Deploy the stack
+      tags: deploy
+      block:
+        - name: Build and (re)start all services
+          ansible.builtin.command:
+            cmd: docker compose up -d --build --remove-orphans
+            chdir: "{{ project_dir }}"
+          changed_when: true
+
+        - name: Prune dangling images
+          ansible.builtin.command: docker image prune -f
+          changed_when: false
