@@ -33,7 +33,7 @@ if command_not_exists uvx; then
 fi
 
 echo "Converging the host with Ansible..."
-uvx --from ansible@13.4.0 ansible-playbook agent.yml \
+uvx --from ansible@14.0.0 ansible-playbook agent.yml \
     -e "auto_update=${AUTO_UPDATE:-}" \
     -e "redeploy_interval=${REDEPLOY_INTERVAL:-}"
 

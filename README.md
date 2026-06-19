@@ -36,7 +36,7 @@ Re-running the bootstrap is safe and reconverges everything:
 ```
 Or rebuild and restart only the containers:
 ```bash
-uvx --from ansible@13.4.0 ansible-playbook agent.yml --tags deploy
+uvx --from ansible@14.0.0 ansible-playbook agent.yml --tags deploy
 ```
 
 ### View Configuration Links:

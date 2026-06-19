@@ -1,7 +1,7 @@
 ---
 # One playbook for the whole CompassVPN host. Run it all (bootstrap.sh does this),
 # or a single stage with tags, e.g. only redeploy:
-#   uvx --from ansible@13.4.0 ansible-playbook agent.yml --tags deploy
+#   uvx --from ansible@14.0.0 ansible-playbook agent.yml --tags deploy
 # Stages (tags): prepare, docker, identifier, cron, deploy.
 - name: Provision and deploy the CompassVPN host
   hosts: localhost
