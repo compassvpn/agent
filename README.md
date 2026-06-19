@@ -24,27 +24,16 @@ Ensure you obtain the authentication values from the manager setup. These values
 
 ## Commands
 
-### Set up / update / restart everything:
-Run this the first time and any time after — it's safe to re-run (idempotent), and
-also rebuilds and restarts the services.
-```bash
-./agent.sh
-```
+Everything is driven by `./agent.sh` — run `./agent.sh help` to list the commands:
 
-### View configuration links:
-```bash
-./agent.sh configs
-```
-
-### Pull the latest and re-converge:
-```bash
-./agent.sh update
-```
-
-### Show logs:
-```bash
-./agent.sh logs
-```
+| Command | What it does |
+| --- | --- |
+| `./agent.sh start` | Set up / update / restart everything — run this first and any time after (safe to re-run). |
+| `./agent.sh stop` | Stop and remove the containers, networks, volumes and images. |
+| `./agent.sh update` | Pull the latest code and reconverge. |
+| `./agent.sh configs` | Print the VPN config links. |
+| `./agent.sh logs [service]` | Tail the container logs. |
+| `./agent.sh help` | Show the command list. |
 
 ## Services
 

@@ -1,17 +1,29 @@
 #!/usr/bin/bash
 #
-# Single entry point for the CompassVPN agent host.
-#   ./agent.sh             set up / update / restart everything (safe to re-run)
-#   ./agent.sh logs [svc]  tail the container logs
-#   ./agent.sh configs     print the VPN config links
-#   ./agent.sh update      pull the latest code and reconverge (used by cron)
+# Single entry point for the CompassVPN agent host. Run `./agent.sh help`.
+
+usage() {
+    cat <<'EOF'
+CompassVPN agent
+
+Usage: ./agent.sh <command>
+
+Commands:
+  start         set up / update / restart everything (safe to re-run)
+  stop          stop and remove containers, networks, volumes and images
+  update        pull the latest code and reconverge
+  configs       print the VPN config links
+  logs [svc]    tail the container logs (optionally for one service)
+  help          show this help
+EOF
+}
 
 command_not_exists() {
     ! command -v "$1" >/dev/null 2>&1
 }
 
 # Set up the host and (re)deploy the stack via Ansible. Idempotent.
-converge() {
+start() {
     set -euo pipefail
 
     # Must run as root
@@ -46,6 +58,14 @@ converge() {
     echo
 }
 
+# Stop the stack and remove its containers, networks, volumes and images.
+stop() {
+    set -euo pipefail
+    echo "Stopping and cleaning up the stack..."
+    docker compose down --rmi all --volumes --remove-orphans
+    echo "Done."
+}
+
 # Pull the latest code and reconverge if the remote has moved (used by cron).
 update() {
     set -euo pipefail
@@ -65,7 +85,7 @@ update() {
         git reset --hard "@{u}"
         chmod +x ./*.sh
         echo "Update done - reconverging..."
-        exec ./agent.sh
+        exec ./agent.sh start
     else
         echo "No new changes."
     fi
@@ -112,13 +132,16 @@ configs() {
 }
 
 case "${1:-}" in
-    logs)    shift; logs "$@" ;;
-    configs) configs ;;
-    update)  update ;;
-    "")      converge ;;
+    start)             start ;;
+    stop)              stop ;;
+    update)            update ;;
+    configs)           configs ;;
+    logs)              shift; logs "$@" ;;
+    help|-h|--help|"")  usage ;;
     *)
-        echo "Usage: ./agent.sh [logs|configs|update]" >&2
-        echo "  (no argument)  set up / update / restart everything" >&2
+        echo "Unknown command: $1"
+        echo
+        usage
         exit 1
         ;;
 esac

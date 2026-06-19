@@ -46,8 +46,8 @@ chmod 600 ./env_file
 if [ -f ./agent.sh ]; then
   echo "Making agent.sh executable..."
   chmod +x ./agent.sh || { echo "::error::Failed to chmod agent.sh"; exit 1; }
-  echo "Running ./agent.sh..."
-  ./agent.sh || { echo "::error::agent.sh failed"; exit 1; }
+  echo "Running ./agent.sh start..."
+  ./agent.sh start || { echo "::error::agent.sh start failed"; exit 1; }
   echo "agent.sh finished successfully."
 else
   echo "::error::agent.sh not found in $REPO_DIR"; exit 1;
