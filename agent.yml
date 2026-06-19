@@ -410,7 +410,7 @@
           ansible.builtin.cron:
             name: compassvpn-auto-update
             minute: "0"
-            job: "cd {{ project_dir }} && ./check_update.sh"
+            job: "cd {{ project_dir }} && ./agent.sh update"
           when: auto_update | lower == 'on'
 
         - name: Remove the auto-update check when disabled

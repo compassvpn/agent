@@ -31,19 +31,19 @@ also rebuilds and restarts the services.
 ./agent.sh
 ```
 
-### View Configuration Links:
+### View configuration links:
 ```bash
-./show_configs.sh
+./agent.sh configs
 ```
 
-### Check & Update:
+### Pull the latest and re-converge:
 ```bash
-./check_update.sh
+./agent.sh update
 ```
 
-### Show Logs:
+### Show logs:
 ```bash
-./logs.sh
+./agent.sh logs
 ```
 
 ## Services
