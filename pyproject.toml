@@ -2,12 +2,12 @@
 # toolchain that provisions the host, so every server gets the same versions.
 # agent.sh runs the playbook through uv against the lock below.
 #
-# To move to a newer Ansible: bump the version here, run `uv lock`, commit both files.
+# To move to a newer Ansible: bump the ansible== pin below, run `uv lock`, commit both files.
 # To refresh transitive deps (security/bug fixes) without changing Ansible: `uv lock --upgrade`.
 
 [project]
 name = "compassvpn-agent"
-version = "0"
+version = "0"   # unused placeholder; nothing reads it (this isn't a published package)
 description = "Pinned Ansible toolchain for provisioning the CompassVPN agent host."
 requires-python = ">=3.12"
 dependencies = [
