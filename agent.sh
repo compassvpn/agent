@@ -40,7 +40,7 @@ start() {
     # Pull in the two operational knobs the playbook needs for cron (not secrets).
     source env_file
 
-    # Ansible's controller needs a newer Python than Debian 12 / Ubuntu 22.04 ship;
+    # Ansible's controller needs Python 3.12+, newer than these releases ship;
     # uv fetches a suitable one itself, so we only need uv on the box.
     if command_not_exists uv; then
         echo "Installing uv..."

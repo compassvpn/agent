@@ -11,7 +11,7 @@ manager's Grafana.
 
 ## Requirements
 
-- A fresh **Debian 12+** or **Ubuntu 22.04+** server, with **root** access.
+- A fresh **Debian 11+** or **Ubuntu 22.04+** server, with **root** access.
 - The auth values from your [manager setup](https://www.compassvpn.org/installation/manager-setup/); they go in `env_file`.
 
 Full requirements are [on the website](https://www.compassvpn.org/installation/#requirements).
@@ -52,8 +52,8 @@ Everything goes through `./agent.sh` (run `./agent.sh help` to list them):
 Two files drive everything:
 
 - **`agent.sh`** is the launcher you run. It makes sure [`uv`](https://docs.astral.sh/uv/)
-  is installed (Ansible needs a newer Python than Debian 12 / Ubuntu 22.04 ship, and
-  `uv` fetches one on its own, so there's nothing system-wide to manage), then runs the
+  is installed (Ansible's control side needs Python 3.12+, newer than these releases ship,
+  and `uv` fetches one on its own, so there's nothing system-wide to manage), then runs the
   playbook from a pinned toolchain (`pyproject.toml` plus `uv.lock`) so every server gets
   the exact same Ansible and dependency versions.
 - **`agent.yml`** is a single Ansible playbook that provisions the host and deploys the

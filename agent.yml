@@ -71,11 +71,23 @@
       ansible.builtin.setup: {}
       tags: always
 
-    - name: Check supported OS family
+    # Fail fast on unsupported hosts. ansible-core needs Python 3.9+ on the target,
+    # which rules out Ubuntu 20.04 (ships 3.8); Debian 11 (3.9) is the floor that works.
+    - name: Check supported OS and version (Debian 11+, Ubuntu 22.04+)
       ansible.builtin.assert:
         that:
           - ansible_facts['distribution'] | lower in ['ubuntu', 'debian']
-        fail_msg: "This playbook only supports Debian/Ubuntu."
+          - >-
+            (ansible_facts['distribution'] | lower == 'debian' and
+             ansible_facts['distribution_major_version'] | int >= 11)
+            or
+            (ansible_facts['distribution'] | lower == 'ubuntu' and
+             ansible_facts['distribution_major_version'] | int >= 22)
+        fail_msg: >-
+          Unsupported OS: {{ ansible_facts['distribution'] }} {{ ansible_facts['distribution_version'] }}.
+          This playbook supports Debian 11+ and Ubuntu 22.04+ (ansible-core needs Python 3.9+ on the host).
+        success_msg: >-
+          {{ ansible_facts['distribution'] }} {{ ansible_facts['distribution_version'] }} is supported.
       tags: always
 
     # ---- prepare: host packages, DNS, tuning, firewall, logs ---------------
