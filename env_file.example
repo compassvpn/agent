@@ -1,31 +1,45 @@
-# Read Here: https://www.compassvpn.org/installation/configuration/
+# Full config reference: https://www.compassvpn.org/installation/configuration/
 
+# Where metrics get shipped: the Grafana remote-write endpoint and its basic-auth
+# credentials, from your manager setup.
 ALLOY_REMOTE_WRITE_URL=
 ALLOY_REMOTE_WRITE_USER=
 ALLOY_REMOTE_WRITE_PASSWORD=
 
-# name of the donor - will appear in all metrics as a label
+# Name of the donor - shows up as a label on every metric.
 DONOR=compass
 
+# How often to re-deploy (which also renews TLS certs), e.g. 10d or 1m. Empty = never.
 REDEPLOY_INTERVAL=
 
+# Cloudflare API token + the zone ID of your domain - used to manage DNS records and
+# pass the TLS cert challenge. CF_CLEAN_IP_DOMAIN is a clean (unblocked) domain to front
+# CDN inbounds with.
 CF_API_TOKEN=
 CF_ZONE_ID=
 CF_CLEAN_IP_DOMAIN=
 
+# Egress mode: "direct", or "warp" to route out through a WireGuard/WARP tunnel.
 XRAY_OUTBOUND=direct
 
-# Append :<count> to create replicas via path-based routing, e.g.: vless-hu-tls-cdn:3
-XRAY_INBOUNDS=vless-tcp-tls-direct,vless-hu-tls-direct,vless-xhttp-quic-direct 
+# Inbounds to enable (comma-separated). Append :<count> for replicas via path-based
+# routing, e.g. vless-hu-tls-cdn:3
+XRAY_INBOUNDS=vless-tcp-tls-direct,vless-hu-tls-direct,vless-xhttp-quic-direct
 
+# TLS certificate authority: "letsencrypt" or "zerossl".
 SSL_PROVIDER=letsencrypt
 
+# Check for updates hourly and apply them automatically. Use on/off.
 AUTO_UPDATE=off
 
+# The secret URL path that carries real proxy traffic - everything else hits the decoy.
 NGINX_PATH=compass
 
+# The decoy website shown to anyone who isn't a real client.
 NGINX_FAKE_WEBSITE=www.divar.ir
 
+# DNS resolver for outbound lookups: "default", "cf", "controld", or a full
+# https+local:// / quic+local:// URL.
 CUSTOM_DNS=controld
 
 # true = verbose logging across all containers, plus xray DNS-query logging and

@@ -2,58 +2,87 @@
 
 # Compass VPN Agent
 
-### Read the complete guide [on our website](https://www.compassvpn.org/installation/).
+A self-contained, Dockerized [Xray](https://github.com/XTLS/Xray-core) VPN node. You
+provision the whole host with one command, and it ships its metrics back to your
+manager's Grafana.
 
-## Features
-### [Read Here.](https://www.compassvpn.org/features/)
+- [Full guide](https://www.compassvpn.org/installation/)
+- [Features](https://www.compassvpn.org/features/)
 
 ## Requirements
 
-### [Read Here.](https://www.compassvpn.org/installation/#requirements)
+- A fresh **Debian 12+** or **Ubuntu 22.04+** server, with **root** access.
+- The auth values from your [manager setup](https://www.compassvpn.org/installation/manager-setup/); they go in `env_file`.
 
-# How to run
+Full requirements are [on the website](https://www.compassvpn.org/installation/#requirements).
 
-## 1. Setup Agent
+## Quick start
 
-### Follow [this tutorial](https://www.compassvpn.org/installation/) to get the Compass VPN Agent running.
+```bash
+# 1. Get the code
+git clone https://github.com/compassvpn/agent.git
+cd agent
 
-## 2. Setup Manager
-### Follow [this tutorial](https://www.compassvpn.org/installation/manager-setup/) to create a manager.
+# 2. Configure it
+cp env_file.example env_file
+nano env_file          # paste the values from your manager setup
 
-Ensure you obtain the authentication values from the manager setup. These values will be required to be included in the `env_file` of the agent.
+# 3. Bring it up
+./agent.sh start
+```
+
+The first run installs Docker and builds the images, so give it a few minutes. Metrics
+should appear in your Grafana within 5 to 10 minutes.
 
 ## Commands
 
-Everything is driven by `./agent.sh` — run `./agent.sh help` to list the commands:
+Everything goes through `./agent.sh` (run `./agent.sh help` to list them):
 
 | Command | What it does |
 | --- | --- |
-| `./agent.sh start` | Set up / update / restart everything — run this first and any time after (safe to re-run). |
+| `./agent.sh start` | Set up, update, or restart everything. Run this first and any time after; it's safe to re-run. |
 | `./agent.sh stop` | Stop and remove the containers, networks, volumes and images. |
 | `./agent.sh update` | Pull the latest code and reconverge. |
 | `./agent.sh configs` | Print the VPN config links. |
 | `./agent.sh logs [service]` | Tail the container logs. |
 | `./agent.sh help` | Show the command list. |
 
-## Services
+## How it works
 
-### `xray-config`
-Creates `config.json`, monitors configurations, and export Xray configurations via `/metrics` path.
+Two files drive everything:
 
-### `xray`
-Reads `config.json` from the **xray-config** service and runs the Xray-core.
+- **`agent.sh`** is the launcher you run. It makes sure [`uv`](https://docs.astral.sh/uv/)
+  is installed (Ansible needs a newer Python than Debian 12 / Ubuntu 22.04 ship, and
+  `uv` fetches one on its own, so there's nothing system-wide to manage), then hands off
+  to the playbook.
+- **`agent.yml`** is a single Ansible playbook that provisions the host and deploys the
+  stack, in stages.
 
-### `xray-exporter`
-Reads Xray's access log and gRPC stats API and exposes them as Prometheus metrics on `:9550`. Also downloads the GeoIP databases on startup to geo-enrich destination metrics.
+`./agent.sh start` runs the playbook top to bottom:
 
-### `node-exporter`
-Prometheus Node Exporter that collects all critical metrics of the agent machine.
+1. **prepare**: base packages, DNS and UTC timezone, kernel/network tuning (BBR,
+   conntrack, file limits), the UFW firewall (SSH plus the service ports), and the log
+   files and rotation.
+2. **docker**: installs Docker if it's missing.
+3. **identifier**: generates a stable per-node ID once (stored in `env_file`), used as a
+   metrics label.
+4. **cron**: schedules the optional hourly auto-update and the periodic re-deploy and
+   cert renewal.
+5. **deploy**: `docker compose up -d --build` to (re)start the stack.
 
-### `nginx`
-NGINX webserver to manage Xray inbounds and fallbacks, enhancing both performance and security.
+It's **idempotent**, so re-running `./agent.sh start` only changes what has drifted
+(usually just a container rebuild). Each stage is also a tag, so you can run one on its
+own, for example `uvx --from ansible@14.0.0 ansible-playbook agent.yml --tags deploy`.
 
-### `metric-forwarder`
-Reads metrics from `xray-config`, `node-exporter`, and `xray-exporter` services and pushes them to a remote manager `Pushgateway` service or `Grafana Cloud Prometheus` endpoint.
+## The stack
 
-### `user-metrics`
-Tracks approximate active unique users across all configured inbounds and monitors blocked requests due to junk traffic, providing insights into bandwidth optimization.
+Six containers, wired up in `docker-compose.yml`:
+
+| Service | Role |
+| --- | --- |
+| `xray-config` | Builds the Xray config, fetches and renews TLS certs (acme.sh and Cloudflare), runs the config self-tests. Internal only. |
+| `xray` | The proxy that handles all the public VPN traffic. Brings up a WireGuard tunnel for egress in warp mode. |
+| `nginx` | Public TLS front plus a decoy site for anything that isn't real proxy traffic. |
+| `xray-exporter` | Turns Xray's access log and stats API into Prometheus metrics on `:9550`, with GeoIP enrichment. |
+| `node-exporter` | Host metrics (CPU, memory, disk, network). Internal only. |
+| `metric-forwarder` | Runs Grafana Alloy, which scrapes the metrics above and ships them to your manager's Grafana. |
