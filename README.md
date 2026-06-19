@@ -24,19 +24,11 @@ Ensure you obtain the authentication values from the manager setup. These values
 
 ## Commands
 
-### Bootstrap: _(first time)_
+### Set up / update / restart everything:
+Run this the first time and any time after — it's safe to re-run (idempotent), and
+also rebuilds and restarts the services.
 ```bash
-./bootstrap.sh
-```
-
-### Rebuild and restart all services:
-Re-running the bootstrap is safe and reconverges everything:
-```bash
-./bootstrap.sh
-```
-Or rebuild and restart only the containers:
-```bash
-uvx --from ansible@14.0.0 ansible-playbook agent.yml --tags deploy
+./agent.sh
 ```
 
 ### View Configuration Links:

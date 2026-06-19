@@ -43,14 +43,14 @@ else
 fi
 chmod 600 ./env_file
 
-if [ -f ./bootstrap.sh ]; then
-  echo "Making bootstrap.sh executable..."
-  chmod +x ./bootstrap.sh || { echo "::error::Failed to chmod bootstrap.sh"; exit 1; }
-  echo "Running ./bootstrap.sh..."
-  ./bootstrap.sh || { echo "::error::bootstrap.sh failed"; exit 1; }
-  echo "bootstrap.sh finished successfully."
+if [ -f ./agent.sh ]; then
+  echo "Making agent.sh executable..."
+  chmod +x ./agent.sh || { echo "::error::Failed to chmod agent.sh"; exit 1; }
+  echo "Running ./agent.sh..."
+  ./agent.sh || { echo "::error::agent.sh failed"; exit 1; }
+  echo "agent.sh finished successfully."
 else
-  echo "::error::bootstrap.sh not found in $REPO_DIR"; exit 1;
+  echo "::error::agent.sh not found in $REPO_DIR"; exit 1;
 fi
 
 echo "Remote script completed."

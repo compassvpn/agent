@@ -1,5 +1,5 @@
 ---
-# One playbook for the whole CompassVPN host. Run it all (bootstrap.sh does this),
+# One playbook for the whole CompassVPN host. Run it all (agent.sh does this),
 # or a single stage with tags, e.g. only redeploy:
 #   uvx --from ansible@14.0.0 ansible-playbook agent.yml --tags deploy
 # Stages (tags): prepare, docker, identifier, cron, deploy.
@@ -15,7 +15,7 @@
     ansible_python_interpreter: /usr/bin/python3
     project_dir: "{{ playbook_dir }}"
 
-    # Operational knobs. bootstrap.sh passes these in from env_file; defaults are
+    # Operational knobs. agent.sh passes these in from env_file; defaults are
     # "off" so a bare run never schedules cron jobs.
     auto_update: ""
     redeploy_interval: ""
@@ -395,7 +395,7 @@
             hour: "0"
             day: "{{ ('*/' ~ redeploy_interval[:-1]) if redeploy_interval.endswith('d') else '1' }}"
             month: "{{ ('*/' ~ redeploy_interval[:-1]) if redeploy_interval.endswith('m') else '*' }}"
-            job: "cd {{ project_dir }} && ./bootstrap.sh"
+            job: "cd {{ project_dir }} && ./agent.sh"
           when:
             - redeploy_interval | length > 0
             - redeploy_interval is match('^[0-9]+[dm]$')

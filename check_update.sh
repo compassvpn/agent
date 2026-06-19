@@ -19,7 +19,7 @@ if [ "$LOCAL" != "$REMOTE" ]; then
     git reset --hard "@{u}"
     chmod +x ./*.sh
     echo "Update done - re-running bootstrap to reconverge..."
-    ./bootstrap.sh
+    ./agent.sh
 else
     echo "No new changes."
 fi
