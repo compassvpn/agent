@@ -57,8 +57,8 @@ Creates `config.json`, monitors configurations, and export Xray configurations v
 ### `xray`
 Reads `config.json` from the **xray-config** service and runs the Xray-core.
 
-### `v2ray-exporter`
-Exports V2Ray/Xray configuration metrics.
+### `xray-exporter`
+Reads Xray's access log and gRPC stats API and exposes them as Prometheus metrics on `:9550`. Also downloads the GeoIP databases on startup to geo-enrich destination metrics.
 
 ### `node-exporter`
 Prometheus Node Exporter that collects all critical metrics of the agent machine.
@@ -67,7 +67,7 @@ Prometheus Node Exporter that collects all critical metrics of the agent machine
 NGINX webserver to manage Xray inbounds and fallbacks, enhancing both performance and security.
 
 ### `metric-forwarder`
-Reads metrics from `xray-config`, `node-exporter`, and `v2ray-exporter` services and pushes them to a remote manager `Pushgateway` service or `Grafana Cloud Prometheus` endpoint.
+Reads metrics from `xray-config`, `node-exporter`, and `xray-exporter` services and pushes them to a remote manager `Pushgateway` service or `Grafana Cloud Prometheus` endpoint.
 
 ### `user-metrics`
 Tracks approximate active unique users across all configured inbounds and monitors blocked requests due to junk traffic, providing insights into bandwidth optimization.

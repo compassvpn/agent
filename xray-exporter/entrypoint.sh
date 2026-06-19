@@ -9,7 +9,11 @@ else
     LOG_LEVEL=warn
 fi
 
+# --user-traffic-metrics: per-user byte counters (one series per user), on by choice.
+# --geoip-dir: where the GeoIP dbs get cached.
 exec /xray-exporter \
     --xray-endpoint xray:54321 \
+    --user-traffic-metrics \
     --log-path /var/log/compassvpn/xray_access.log \
+    --geoip-dir /geoip \
     --log-level "$LOG_LEVEL"

@@ -136,7 +136,8 @@ services:
     depends_on:
       - xray
 
-  # Reads Xray's access log and exposes it as Prometheus metrics on :9550.
+  # Reads Xray's access log and exposes it as Prometheus metrics on :9550. Also
+  # pulls the GeoIP dbs from GitHub on startup (cached in the xray_geoip volume).
   xray-exporter:
     build:
       context: ./xray-exporter
@@ -144,11 +145,12 @@ services:
     restart: always
     <<: [*log-small, *hardening]
     cap_drop:
-      - ALL          # outbound scrape + read-only log + :9550; no caps needed
+      - ALL          # outbound scrape + GeoIP download + read-only log + :9550; no caps needed
     depends_on:
       - xray
     volumes:
       - /var/log/compassvpn:/var/log/compassvpn:ro
+      - "xray_geoip:/geoip"   # cache the downloaded GeoIP dbs
       - "./shared_lib:/shared_lib:ro"
     env_file:
       - env_file          # entrypoint reads DEBUG from here to pick its log level
@@ -215,3 +217,6 @@ services:
 # Shared cert store: xray-config writes here (acme.sh), xray and nginx read from it.
 volumes:
   acme:
+  # GeoIP dbs the xray-exporter downloads on startup - kept so we don't re-fetch
+  # them from GitHub on every restart.
+  xray_geoip:
