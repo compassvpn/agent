@@ -103,7 +103,6 @@
               - coreutils
               - iproute2
               - lsof
-              - ufw
               - logrotate
             state: present
 
@@ -196,11 +195,10 @@
           changed_when: false
           when: not openvz_file.stat.exists
 
-        - name: Remove firewalld if present (conflicts with UFW)
+        - name: Ensure UFW is installed
           ansible.builtin.apt:
-            name: firewalld
-            state: absent
-            purge: true
+            name: ufw
+            state: present
 
         - name: Point UFW at the system sysctl file
           ansible.builtin.replace:
