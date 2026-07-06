@@ -93,6 +93,8 @@ def _nginx_location_block(path: str, xray_port: int, template: str) -> str:
             f'        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;\n'
             f'        proxy_set_header Host $host;\n'
             f'        proxy_redirect off;\n'
+            f'        proxy_read_timeout 315;\n'
+            f'        proxy_socket_keepalive on;\n'
             f'    }}'
         )
     if template == "xhttp":

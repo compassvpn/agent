@@ -26,6 +26,10 @@ server {
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header Host $host;
         proxy_redirect off;
+        # Match the xhttp locations; the 60s default cut every quiet tunnel
+        # each minute, hammering the upstream port with reconnects.
+        proxy_read_timeout 315;
+        proxy_socket_keepalive on;
     }
 
     # Forwards this path requests to xray (cdn).
@@ -41,6 +45,8 @@ server {
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header Host $host;
         proxy_redirect off;
+        proxy_read_timeout 315;
+        proxy_socket_keepalive on;
     }
 
     include /etc/nginx/locations.d/2053/replicas.conf;
