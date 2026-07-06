@@ -1,3 +1,7 @@
+# Template: the entrypoint copies this to /etc/monit.d/xray and appends one
+# "if failed host 127.0.0.1 port N ..." line per inbound port, so xray is
+# restarted not only when the process dies but also when a listener stops
+# accepting connections while the process stays alive.
 check process xray with pidfile "/run/xray.pid"
   start program = "/start_xray.sh"
   stop program = "/stop_xray.sh"

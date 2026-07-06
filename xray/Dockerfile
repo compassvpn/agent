@@ -11,7 +11,9 @@ COPY ./start_xray.sh /start_xray.sh
 COPY ./stop_xray.sh /stop_xray.sh
 
 COPY wg_monit /wg_monit
-COPY ./xray_monit /etc/monit.d/xray
+# Template only: the entrypoint renders it to /etc/monit.d/xray with one port
+# check per inbound taken from the generated config.
+COPY ./xray_monit /xray_monit
 
 COPY entrypoint.sh entrypoint.sh
 
