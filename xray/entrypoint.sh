@@ -122,18 +122,24 @@ fi
 # accepting connections while the xray process stays alive (seen in the wild
 # with httpupgrade under junk traffic - the port's accept queue fills up and
 # every new connection times out). Render the monit config from the template
-# plus one TCP connect check per inbound port, so monit also restarts xray
-# when a port goes deaf. "for 3 cycles" (~90s) tolerates brief load spikes.
+# plus one TCP connect check per inbound port. A deaf port gets healed
+# surgically (/heal_inbound.sh re-adds just that inbound via the xray API, no
+# impact on other inbounds); only the API inbound itself (doko) falls back to
+# a full restart since a dead API can't heal anything. "for 3 cycles" (~90s)
+# tolerates brief load spikes; "repeat" re-fires the heal so it can escalate.
 generate_monit_config() {
     {
         cat /xray_monit
         jq -r '
             [ .inbounds[]
               | select((.listen // "0.0.0.0") == "0.0.0.0" or .listen == "127.0.0.1")
-              | .port
-              | select(type == "number") ]
-            | unique | .[]
-            | "  if failed host 127.0.0.1 port \(.) type tcp for 3 cycles then restart"
+              | select((.port | type) == "number") ]
+            | unique_by(.port) | .[]
+            | if .tag == "doko" then
+                "  if failed host 127.0.0.1 port \(.port) type tcp with timeout 10 seconds for 3 cycles then restart"
+              else
+                "  if failed host 127.0.0.1 port \(.port) type tcp with timeout 10 seconds for 3 cycles then exec \"/heal_inbound.sh \(.port)\" repeat every 3 cycles"
+              end
         ' /etc/xray/config.json
     } > /etc/monit.d/xray
 }

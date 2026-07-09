@@ -9,6 +9,7 @@ RUN wget -O /usr/share/xray/geosite_IR.dat https://github.com/chocolate4u/Iran-v
 
 COPY ./start_xray.sh /start_xray.sh
 COPY ./stop_xray.sh /stop_xray.sh
+COPY ./heal_inbound.sh /heal_inbound.sh
 
 COPY wg_monit /wg_monit
 # Template only: the entrypoint renders it to /etc/monit.d/xray with one port
