@@ -12,8 +12,11 @@
 x-public-tuned: &public-tuned
   ulimits:
     nofile:
-      soft: 65535
-      hard: 65535
+      # Way above what normal load needs: xray's httpupgrade listener dies
+      # for good if accept() ever hits EMFILE (leaked half-open handshakes
+      # fill the fd table), so keep that ceiling far away.
+      soft: 1048576
+      hard: 1048576
   # These sysctls are per-network-namespace, so they apply only inside the
   # container - intentionally separate from the host values in agent.yml
   # (don't delete them thinking they're duplicates).
