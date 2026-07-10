@@ -1,4 +1,6 @@
+import base64
 import copy
+import hashlib
 import json
 import re
 import string
@@ -28,7 +30,7 @@ CF_API_TIMEOUT = (10, 30)
 
 
 # Inbounds that bind a port directly (no HTTP path) — replicas not supported
-_NO_REPLICA_SUPPORT = {"vless-tcp-tls-direct", "vmess-ws-cdn"}
+_NO_REPLICA_SUPPORT = {"vless-tcp-tls-direct", "vmess-ws-cdn", "vless-reality-direct"}
 
 # Maps inbound name → (nginx server port, location template)
 _NGINX_PROXY_MAP: Dict[str, tuple] = {
@@ -160,6 +162,10 @@ class XrayConfig:
         self.direct_subdomain: Optional[str] = None
         self._cert_serial: int = 0
         self.cf_clean_ip_domain: str = "npmjs.com"
+        self.reality_private_key: str = ""
+        self.reality_public_key: str = ""
+        self.reality_short_id: str = ""
+        self.reality_sni: str = ""
         self.configured_inbounds: List[Dict[str, Any]] = []
         self.xray_config: Dict[str, Any] = {}
         self.warps_ready: bool = False
@@ -266,6 +272,41 @@ class XrayConfig:
         res2 = create_dns_record(name, True)
         return name if res1 and res2 else None
 
+    def _setup_reality(self) -> None:
+        """Derive the REALITY keypair and short id deterministically from the
+        identifier (same idea as the uuid), so links survive redeploys without
+        persisting any key material."""
+        seed = hashlib.sha256(f"{self.config_id}:reality".encode()).digest()
+        seed_b64 = base64.urlsafe_b64encode(seed).decode().rstrip("=")
+        result = exec_command(["xray", "x25519", "-i", seed_b64], capture_output=True)
+        if result.returncode != 0 or not result.stdout:
+            log.error(
+                "xray x25519 failed; REALITY inbounds will be skipped",
+                hypothesisId="CFG",
+                exit_code=result.returncode,
+            )
+            return
+        # v26 prints "PrivateKey:" / "Password (PublicKey):"; older builds
+        # printed "Private key:" / "Public key:" — accept both.
+        for line in result.stdout.splitlines():
+            label, _, value = line.partition(":")
+            label = label.strip().lower()
+            value = value.strip()
+            if label in ("privatekey", "private key"):
+                self.reality_private_key = value
+            elif label.startswith("password") or label == "public key":
+                self.reality_public_key = value
+        if not self.reality_private_key or not self.reality_public_key:
+            self.reality_private_key = self.reality_public_key = ""
+            log.error(
+                "Could not parse xray x25519 output; REALITY inbounds will be skipped",
+                hypothesisId="CFG",
+            )
+            return
+        self.reality_short_id = hashlib.sha256(
+            f"{self.config_id}:reality-sid".encode()
+        ).hexdigest()[:8]
+
     def initialize(self) -> None:
         """Perform all initialization logic. Only executes once."""
         if self.initialized:
@@ -291,7 +332,7 @@ class XrayConfig:
         self.xray_inbounds = {}
         for entry in self.env_config.get(
             "XRAY_INBOUNDS",
-            "vmess-ws-cdn,vless-tcp-tls-direct,vless-hu-tls-direct,vless-hu-tls-cdn,vless-xhttp-quic-direct,vless-xhttp-quic-cdn,vless-xhttp-direct,vless-xhttp-cdn",
+            "vmess-ws-cdn,vless-tcp-tls-direct,vless-reality-direct,vless-hu-tls-direct,vless-hu-tls-cdn,vless-xhttp-quic-direct,vless-xhttp-quic-cdn,vless-xhttp-direct,vless-xhttp-cdn",
         ).split(","):
             name, _, count = entry.strip().partition(":")
             self.xray_inbounds[name] = int(count) if count.isdigit() else 1
@@ -390,6 +431,11 @@ class XrayConfig:
 
         self.cf_clean_ip_domain = self.env_config.get("CF_CLEAN_IP_DOMAIN", "npmjs.com")
 
+        # REALITY needs no cert or nginx: the camouflage SNI must be a real
+        # TLS 1.3 + X25519 site reachable from this server.
+        self.reality_sni = self.env_config.get("REALITY_SNI", "yahoo.com")
+        self._setup_reality()
+
         # Process Inbounds Template
         def substitute_vars(data: Any, mapping: Dict[str, Any]) -> Any:
             """Recursively substitute variables in strings within a nested data structure."""
@@ -413,6 +459,10 @@ class XrayConfig:
                     "server_ip": self.server_ip,
                     "direct_subdomain": self.direct_subdomain or "",
                     "subdomain": self.subdomain or "",
+                    "reality_private_key": self.reality_private_key,
+                    "reality_public_key": self.reality_public_key,
+                    "reality_short_id": self.reality_short_id,
+                    "reality_sni": self.reality_sni,
                 },
             )
             self.configured_inbounds = [
@@ -499,6 +549,21 @@ class XrayConfig:
                 f"Skipped {skipped} TLS inbound(s) with missing certificates",
                 hypothesisId="CFG",
             )
+
+        # Same idea for REALITY: an empty privateKey would fail `xray -test`
+        # and bring down the whole container.
+        if not self.reality_private_key:
+            before = len(self.configured_inbounds)
+            self.configured_inbounds = [
+                ib for ib in self.configured_inbounds
+                if ib.get("inbound", {}).get("streamSettings", {}).get("security") != "reality"
+            ]
+            skipped = before - len(self.configured_inbounds)
+            if skipped:
+                log.warning(
+                    f"Skipped {skipped} REALITY inbound(s): key generation failed",
+                    hypothesisId="CFG",
+                )
 
         # Build nginx location blocks for replicas that survived TLS filtering
         nginx_locs: Dict[int, List[str]] = {}

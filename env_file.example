@@ -24,7 +24,12 @@ XRAY_OUTBOUND=direct
 
 # Inbounds to enable (comma-separated). Append :<count> for replicas via path-based
 # routing, e.g. vless-hu-tls-cdn:3
-XRAY_INBOUNDS=vless-tcp-tls-direct,vless-hu-tls-direct,vless-xhttp-quic-direct
+XRAY_INBOUNDS=vless-tcp-tls-direct,vless-reality-direct,vless-hu-tls-direct,vless-xhttp-quic-direct
+
+# Camouflage site for the vless-reality-direct inbound (port 2083). Must be a real
+# site that supports TLS 1.3 and is reachable from the server. REALITY needs no
+# domain, certificate, or Cloudflare setup.
+REALITY_SNI=yahoo.com
 
 # TLS certificate authority: "letsencrypt" or "zerossl".
 SSL_PROVIDER=letsencrypt

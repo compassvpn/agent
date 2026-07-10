@@ -97,6 +97,49 @@
     }
   },
   {
+    "name": "vless-reality-direct",
+    "link": "vless://$config_id@$server_ip:2083?type=tcp&security=reality&flow=xtls-rprx-vision&fp=chrome&pbk=$reality_public_key&sid=$reality_short_id&sni=$reality_sni&spx=%2F#vless-reality-direct",
+    "cloudflare": false,
+    "inbound": {
+      "tag": "vless-reality-direct",
+      "listen": "0.0.0.0",
+      "port": 2083,
+      "protocol": "vless",
+      "settings": {
+        "clients": [
+          {
+            "flow": "xtls-rprx-vision",
+            "id": "$config_id"
+          }
+        ],
+        "decryption": "none"
+      },
+      "streamSettings": {
+        "network": "raw",
+        "security": "reality",
+        "realitySettings": {
+          "target": "$reality_sni:443",
+          "xver": 0,
+          "serverNames": [
+            "$reality_sni"
+          ],
+          "privateKey": "$reality_private_key",
+          "shortIds": [
+            "$reality_short_id"
+          ]
+        }
+      },
+      "sniffing": {
+        "enabled": true,
+        "destOverride": [
+          "http",
+          "tls",
+          "quic"
+        ]
+      }
+    }
+  },
+  {
     "name": "vless-hu-tls-direct",
     "link": "vless://$config_id@$direct_subdomain:2053?type=httpupgrade&host=$direct_subdomain&path=%2F$nginx_path&security=tls&fp=chrome&alpn=http%2F1.1&sni=$direct_subdomain#vless-hu-tls-direct",
     "cloudflare": false,

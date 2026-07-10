@@ -98,6 +98,7 @@ services:
       - "8080:8080/udp"
       - "443:443/tcp"
       - "443:443/udp"
+      - "2083:2083/tcp"    # vless-reality-direct (raw TCP, no nginx in front)
 
   # Public TLS front + camouflage. Real proxy paths get forwarded to xray;
   # everything else falls through to a decoy website. Builds its config from
