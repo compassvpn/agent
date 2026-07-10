@@ -180,17 +180,21 @@ services:
     volumes:
       - "./shared_lib:/shared_lib:ro"
       - "./env_file:/env_file:ro"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"   # reach node-exporter on the host netns (docker0)
     depends_on:
       - xray-config
       - node-exporter
 
-  # Standard host metrics (CPU, memory, disk, network). Reads it all from the
-  # mounted host /proc + /sys, so it runs on the normal compose network like the
-  # others and is scraped internally as node-exporter:9100 - no host networking,
-  # no published port, nothing opened on the host firewall.
+  # Standard host metrics (CPU, memory, disk, network). Must share the host
+  # network namespace: /proc/net is a symlink to /proc/self/net, so the netdev
+  # collector reports whatever netns it runs in - from an isolated netns it
+  # would only see the container's own veth, not the host NICs. It binds to
+  # the docker0 IP only, so nothing is reachable from outside the host.
   node-exporter:
     image: prom/node-exporter:v1.11.1
     restart: always
+    network_mode: host
     <<: [*log-small, *hardening]
     cap_drop:
       - ALL          # enabled collectors are pure procfs/sysfs readers
@@ -217,7 +221,7 @@ services:
       - '--collector.time'
       - '--collector.stat'
       - '--collector.pressure'
-      - "--web.listen-address=:9100" # internal only; reached by metric-forwarder over the compose network
+      - "--web.listen-address=172.17.0.1:9100" # docker0 only; reached by metric-forwarder via host.docker.internal
 
 # Shared cert store: xray-config writes here (acme.sh), xray and nginx read from it.
 volumes:
