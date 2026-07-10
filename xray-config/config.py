@@ -325,8 +325,11 @@ class XrayConfig:
         X25519, so it stays post-quantum safe either way). The server keeps the
         private key in `decryption`; clients carry the matching public key
         ("Password") in `encryption`. Format per Xray-core:
-          decryption: mlkem768x25519plus.native.600s.<PrivateKey>
-          encryption: mlkem768x25519plus.native.0rtt.<Password>
+          decryption: mlkem768x25519plus.xorpub.600s.<padding>.<PrivateKey>
+          encryption: mlkem768x25519plus.xorpub.0rtt.<padding>.<Password>
+        xorpub masks the handshake public key (cheap obfs against DPI); the
+        default padding hides the handshake length. Client uses 0rtt for fast,
+        battery-friendly reconnects.
         """
         seed = hashlib.sha256(f"{self.config_id}:vless-enc".encode()).digest()
         seed_b64 = base64.urlsafe_b64encode(seed).decode().rstrip("=")
@@ -355,11 +358,14 @@ class XrayConfig:
                 hypothesisId="CFG",
             )
             return
+        # xorpub obfuscation + the stock padding profile (shared by everyone,
+        # so it blends into the largest crowd rather than standing out).
+        _padding = "100-111-1111.75-0-111.50-0-3333"
         self.vless_enc_decryption = (
-            f"mlkem768x25519plus.native.600s.{self.vless_enc_private_key}"
+            f"mlkem768x25519plus.xorpub.600s.{_padding}.{self.vless_enc_private_key}"
         )
         self.vless_enc_encryption = (
-            f"mlkem768x25519plus.native.0rtt.{self.vless_enc_password}"
+            f"mlkem768x25519plus.xorpub.0rtt.{_padding}.{self.vless_enc_password}"
         )
 
     def initialize(self) -> None:
