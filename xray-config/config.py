@@ -30,7 +30,7 @@ CF_API_TIMEOUT = (10, 30)
 
 
 # Inbounds that bind a port directly (no HTTP path) — replicas not supported
-_NO_REPLICA_SUPPORT = {"vless-tcp-tls-direct", "vmess-ws-cdn", "vless-reality-direct"}
+_NO_REPLICA_SUPPORT = {"vless-tcp-tls-direct", "vmess-ws-cdn", "vless-tcp-reality-direct"}
 
 # Maps inbound name → (nginx server port, location template)
 _NGINX_PROXY_MAP: Dict[str, tuple] = {
@@ -332,7 +332,7 @@ class XrayConfig:
         self.xray_inbounds = {}
         for entry in self.env_config.get(
             "XRAY_INBOUNDS",
-            "vmess-ws-cdn,vless-tcp-tls-direct,vless-reality-direct,vless-hu-tls-direct,vless-hu-tls-cdn,vless-xhttp-quic-direct,vless-xhttp-quic-cdn,vless-xhttp-direct,vless-xhttp-cdn",
+            "vmess-ws-cdn,vless-tcp-tls-direct,vless-tcp-reality-direct,vless-hu-tls-direct,vless-hu-tls-cdn,vless-xhttp-quic-direct,vless-xhttp-quic-cdn,vless-xhttp-direct,vless-xhttp-cdn",
         ).split(","):
             name, _, count = entry.strip().partition(":")
             self.xray_inbounds[name] = int(count) if count.isdigit() else 1

@@ -97,11 +97,11 @@
     }
   },
   {
-    "name": "vless-reality-direct",
-    "link": "vless://$config_id@$server_ip:2083?type=tcp&security=reality&flow=xtls-rprx-vision&fp=chrome&pbk=$reality_public_key&sid=$reality_short_id&sni=$reality_sni&spx=%2F#vless-reality-direct",
+    "name": "vless-tcp-reality-direct",
+    "link": "vless://$config_id@$server_ip:2083?type=tcp&security=reality&flow=xtls-rprx-vision&fp=chrome&pbk=$reality_public_key&sid=$reality_short_id&sni=$reality_sni&spx=%2F#vless-tcp-reality-direct",
     "cloudflare": false,
     "inbound": {
-      "tag": "vless-reality-direct",
+      "tag": "vless-tcp-reality-direct",
       "listen": "0.0.0.0",
       "port": 2083,
       "protocol": "vless",
