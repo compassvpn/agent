@@ -189,8 +189,11 @@ services:
   # Standard host metrics (CPU, memory, disk, network). Must share the host
   # network namespace: /proc/net is a symlink to /proc/self/net, so the netdev
   # collector reports whatever netns it runs in - from an isolated netns it
-  # would only see the container's own veth, not the host NICs. It binds to
-  # the docker0 IP only, so nothing is reachable from outside the host.
+  # would only see the container's own veth, not the host NICs. It listens on
+  # all interfaces because the docker0 IP is not stable across hosts (Docker
+  # picks the next free pool if 172.17.0.0/16 is taken); UFW's default-deny
+  # keeps 9100 unreachable from outside, and it's not a published port so
+  # Docker's iptables bypass doesn't apply.
   node-exporter:
     image: prom/node-exporter:v1.11.1
     restart: always
@@ -221,7 +224,7 @@ services:
       - '--collector.time'
       - '--collector.stat'
       - '--collector.pressure'
-      - "--web.listen-address=172.17.0.1:9100" # docker0 only; reached by metric-forwarder via host.docker.internal
+      - "--web.listen-address=:9100" # blocked externally by UFW; reached by metric-forwarder via host.docker.internal
 
 # Shared cert store: xray-config writes here (acme.sh), xray and nginx read from it.
 volumes:

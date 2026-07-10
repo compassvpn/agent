@@ -27,7 +27,8 @@
       - "127.0.0.53"
 
     # Ports opened on the host firewall. 9100 (node-exporter) is intentionally NOT
-    # here - it's reached only over the internal Docker network, never the host.
+    # here - it listens on the host, but only the local Docker bridges can reach
+    # it; the default-deny keeps it closed to the internet.
     required_ports:
       - 80
       - 8080
