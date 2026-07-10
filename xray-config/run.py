@@ -5,7 +5,7 @@ from flask import Flask, abort
 
 from config import config
 from shared_lib.system import exec_command, get_machine_id, csv_to_dict
-from shared_lib.logger import log
+from shared_lib.logger import log, is_debug
 from shared_lib.network import get_public_ip
 from shared_lib.xray import parse_config_link
 from shared_lib.paths import CONFIGS_CSV, VALID_CSV, ACME_SH_PATH
@@ -177,23 +177,23 @@ class XrayService:
             exec_command(["cat", str(CONFIGS_CSV)])
 
             log.info("start xray testing...", hypothesisId="TEST")
-            exec_command(
-                [
-                    "xray-knife",
-                    "http",
-                    "--thread",
-                    "6",
-                    "-v",
-                    "-d",
-                    "10000",
-                    "-f",
-                    str(CONFIGS_CSV),
-                    "-o",
-                    str(VALID_CSV),
-                    "-x",
-                    "csv",
-                ]
-            )
+            knife_cmd = [
+                "xray-knife",
+                "http",
+                "--thread",
+                "6",
+                "-d",
+                "10000",
+                "-f",
+                str(CONFIGS_CSV),
+                "-o",
+                str(VALID_CSV),
+                "-x",
+                "csv",
+            ]
+            if is_debug():
+                knife_cmd.append("-v")
+            exec_command(knife_cmd)
 
             self.valid_configs = csv_to_dict(str(VALID_CSV))
             log.debug(
