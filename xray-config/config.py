@@ -166,7 +166,6 @@ class XrayConfig:
         self.cf_clean_ip_domain: str = "npmjs.com"
         self.reality_private_key: str = ""
         self.reality_public_key: str = ""
-        self.reality_short_id: str = ""
         self.reality_sni: str = ""
         # VLESS Encryption (post-quantum AEAD) for the non-TLS httpupgrade
         # inbounds: derived deterministically like REALITY so links survive
@@ -312,9 +311,6 @@ class XrayConfig:
                 hypothesisId="CFG",
             )
             return
-        self.reality_short_id = hashlib.sha256(
-            f"{self.config_id}:reality-sid".encode()
-        ).hexdigest()[:8]
 
     def _setup_vless_encryption(self) -> None:
         """Derive the VLESS Encryption keypair deterministically from the
@@ -524,7 +520,6 @@ class XrayConfig:
                     "subdomain": self.subdomain or "",
                     "reality_private_key": self.reality_private_key,
                     "reality_public_key": self.reality_public_key,
-                    "reality_short_id": self.reality_short_id,
                     "reality_sni": self.reality_sni,
                     "vless_enc_decryption": self.vless_enc_decryption,
                     "vless_enc_encryption": self.vless_enc_encryption,

@@ -116,7 +116,7 @@
   },
   {
     "name": "vless-tcp-reality-direct",
-    "link": "vless://$config_id@$server_ip:2083?type=tcp&security=reality&flow=xtls-rprx-vision&fp=chrome&pbk=$reality_public_key&sid=$reality_short_id&sni=$reality_sni&spx=%2F#vless-tcp-reality-direct",
+    "link": "vless://$config_id@$server_ip:2083?type=tcp&security=reality&flow=xtls-rprx-vision&fp=chrome&pbk=$reality_public_key&sid=2083&sni=$reality_sni&spx=%2F#vless-tcp-reality-direct",
     "cloudflare": false,
     "inbound": {
       "tag": "vless-tcp-reality-direct",
@@ -143,7 +143,7 @@
           ],
           "privateKey": "$reality_private_key",
           "shortIds": [
-            "$reality_short_id"
+            "2083"
           ]
         }
       },
@@ -159,7 +159,7 @@
   },
   {
     "name": "vless-xhttp-reality-direct",
-    "link": "vless://$config_id@$server_ip:2087?type=xhttp&mode=auto&path=%2F$nginx_path&security=reality&fp=chrome&pbk=$reality_public_key&sid=$reality_short_id&sni=$reality_sni&spx=%2F#vless-xhttp-reality-direct",
+    "link": "vless://$config_id@$server_ip:2087?type=xhttp&mode=auto&path=%2F$nginx_path&security=reality&fp=chrome&pbk=$reality_public_key&sid=2087&sni=$reality_sni&spx=%2F#vless-xhttp-reality-direct",
     "cloudflare": false,
     "inbound": {
       "tag": "vless-xhttp-reality-direct",
@@ -185,7 +185,7 @@
           ],
           "privateKey": "$reality_private_key",
           "shortIds": [
-            "$reality_short_id"
+            "2087"
           ]
         },
         "xhttpSettings": {
