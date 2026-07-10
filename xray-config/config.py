@@ -431,9 +431,10 @@ class XrayConfig:
 
         self.cf_clean_ip_domain = self.env_config.get("CF_CLEAN_IP_DOMAIN", "npmjs.com")
 
-        # REALITY needs no cert or nginx: the camouflage SNI must be a real
-        # TLS 1.3 + X25519 site reachable from this server.
-        self.reality_sni = self.env_config.get("REALITY_SNI", "yahoo.com")
+        # REALITY needs no cert or nginx: its camouflage SNI reuses the same
+        # decoy site nginx fronts (FAKE_WEBSITE). It must be a real TLS 1.3 +
+        # X25519 site reachable from this server.
+        self.reality_sni = self.env_config.get("FAKE_WEBSITE", "www.divar.ir")
         self._setup_reality()
 
         # Process Inbounds Template

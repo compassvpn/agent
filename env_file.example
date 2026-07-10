@@ -26,11 +26,6 @@ XRAY_OUTBOUND=direct
 # routing, e.g. vless-hu-tls-cdn:3
 XRAY_INBOUNDS=vless-tcp-tls-direct,vless-reality-direct,vless-hu-tls-direct,vless-xhttp-quic-direct
 
-# Camouflage site for the vless-reality-direct inbound (port 2083). Must be a real
-# site that supports TLS 1.3 and is reachable from the server. REALITY needs no
-# domain, certificate, or Cloudflare setup.
-REALITY_SNI=yahoo.com
-
 # TLS certificate authority: "letsencrypt" or "zerossl".
 SSL_PROVIDER=letsencrypt
 
@@ -40,8 +35,10 @@ AUTO_UPDATE=off
 # The secret URL path that carries real proxy traffic - everything else hits the decoy.
 NGINX_PATH=compass
 
-# The decoy website shown to anyone who isn't a real client.
-NGINX_FAKE_WEBSITE=www.divar.ir
+# The decoy website: shown by nginx to anyone who isn't a real client, and
+# reused as the REALITY camouflage SNI (target sni:443) for vless-reality-direct.
+# Must be a real site that supports TLS 1.3 and is reachable from the server.
+FAKE_WEBSITE=www.divar.ir
 
 # DNS resolver for outbound lookups: "default", "cf", "controld", or a full
 # https+local:// / quic+local:// URL.

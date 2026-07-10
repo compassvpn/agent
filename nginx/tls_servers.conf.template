@@ -55,7 +55,7 @@ server {
     location / {
         sub_filter $proxy_host $host;
         sub_filter_once off;
-        set $website ${NGINX_FAKE_WEBSITE};
+        set $website ${FAKE_WEBSITE};
         proxy_pass https://$website;
 
         proxy_set_header Host $proxy_host;
@@ -126,7 +126,7 @@ server {
     location / {
         sub_filter $proxy_host $host;
         sub_filter_once off;
-        set $website ${NGINX_FAKE_WEBSITE};
+        set $website ${FAKE_WEBSITE};
         proxy_pass https://$website;
 
         proxy_set_header Host $proxy_host;

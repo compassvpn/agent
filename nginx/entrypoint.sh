@@ -47,7 +47,7 @@ fi
 # Render static placeholders in the main config.
 # The explicit variable list leaves nginx's own $variables untouched.
 NGINX_LOG_LEVEL="$NGINX_LOG_LEVEL" \
-    envsubst '${NGINX_FAKE_WEBSITE}${NGINX_PATH}${NGINX_LOG_LEVEL}' \
+    envsubst '${FAKE_WEBSITE}${NGINX_PATH}${NGINX_LOG_LEVEL}' \
     < "$NGINX_CONF_PATH" > /tmp/nginx.conf && mv /tmp/nginx.conf "$NGINX_CONF_PATH"
 
 # TLS server blocks require a Cloudflare subdomain and certificate.
@@ -56,7 +56,7 @@ NGINX_LOG_LEVEL="$NGINX_LOG_LEVEL" \
 if [ -n "${CF_API_TOKEN:-}" ] && [ -n "${CF_ZONE_ID:-}" ]; then
     DIRECT_SUBDOMAIN=$(curl -sf "$XRAY_CONFIG_BASE/subdomain")
     DIRECT_SUBDOMAIN="$DIRECT_SUBDOMAIN" \
-        envsubst '${NGINX_FAKE_WEBSITE}${NGINX_PATH}${DIRECT_SUBDOMAIN}' \
+        envsubst '${FAKE_WEBSITE}${NGINX_PATH}${DIRECT_SUBDOMAIN}' \
         < "$TLS_TEMPLATE" > "$TLS_CONF"
     echo "TLS config generated for $DIRECT_SUBDOMAIN"
 else
