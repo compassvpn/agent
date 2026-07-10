@@ -30,7 +30,7 @@ CF_API_TIMEOUT = (10, 30)
 
 
 # Inbounds that bind a port directly (no HTTP path) — replicas not supported
-_NO_REPLICA_SUPPORT = {"vless-tcp-tls-direct", "vless-tcp-reality-direct"}
+_NO_REPLICA_SUPPORT = {"vless-tcp-tls-direct", "vless-tcp-reality-direct", "vless-xhttp-reality-direct"}
 
 # Maps inbound name → (nginx server port, location template)
 _NGINX_PROXY_MAP: Dict[str, tuple] = {

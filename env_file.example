@@ -23,7 +23,8 @@ CF_CLEAN_IP_DOMAIN=
 XRAY_OUTBOUND=direct
 
 # Inbounds to enable (comma-separated). Append :<count> for replicas via path-based
-# routing, e.g. vless-hu-tls-cdn:3
+# routing, e.g. vless-hu-tls-cdn:3. Full list is in xray-config/inbounds.json;
+# vless-xhttp-reality-direct (REALITY over XHTTP) is available as an opt-in.
 XRAY_INBOUNDS=vless-hu-direct,vless-tcp-tls-direct,vless-tcp-reality-direct,vless-hu-tls-direct,vless-xhttp-quic-direct
 
 # TLS certificate authority: "letsencrypt" or "zerossl".

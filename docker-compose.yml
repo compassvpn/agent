@@ -100,6 +100,7 @@ services:
       - "443:443/tcp"
       - "443:443/udp"
       - "2083:2083/tcp"    # vless-tcp-reality-direct (raw TCP, no nginx in front)
+      - "2087:2087/tcp"    # vless-xhttp-reality-direct (REALITY over XHTTP, no nginx)
 
   # Public TLS front + camouflage. Real proxy paths get forwarded to xray;
   # everything else falls through to a decoy website. Builds its config from
