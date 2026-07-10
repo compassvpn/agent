@@ -24,7 +24,7 @@ XRAY_OUTBOUND=direct
 
 # Inbounds to enable (comma-separated). Append :<count> for replicas via path-based
 # routing, e.g. vless-hu-tls-cdn:3
-XRAY_INBOUNDS=vless-tcp-tls-direct,vless-tcp-reality-direct,vless-hu-tls-direct,vless-xhttp-quic-direct
+XRAY_INBOUNDS=vless-hu-direct,vless-tcp-tls-direct,vless-tcp-reality-direct,vless-hu-tls-direct,vless-xhttp-quic-direct
 
 # TLS certificate authority: "letsencrypt" or "zerossl".
 SSL_PROVIDER=letsencrypt

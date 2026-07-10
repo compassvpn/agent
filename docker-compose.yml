@@ -97,8 +97,6 @@ services:
     depends_on:
       - xray-config        # needs the generated config before it can start
     ports:                 # public entry points (both TCP and UDP)
-      - "8080:8080/tcp"
-      - "8080:8080/udp"
       - "443:443/tcp"
       - "443:443/udp"
       - "2083:2083/tcp"    # vless-tcp-reality-direct (raw TCP, no nginx in front)
@@ -128,6 +126,8 @@ services:
     env_file:
       - env_file
     ports:                 # public entry points (both TCP and UDP)
+      - "8080:8080/tcp"    # vless-hu-* (non-TLS httpupgrade, VLESS encryption)
+      - "8080:8080/udp"
       - "8880:8880/tcp"
       - "8880:8880/udp"
       - "2053:2053/tcp"

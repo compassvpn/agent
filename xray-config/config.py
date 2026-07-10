@@ -12,7 +12,7 @@ from urllib.parse import unquote, quote
 import requests
 
 from shared_lib.network import get_public_ip
-from shared_lib.xray import register_warp, generate_vmess_link
+from shared_lib.xray import register_warp
 from shared_lib.config import load_env, get_identifier
 from shared_lib.system import exec_command
 from shared_lib.logger import log, is_debug
@@ -30,10 +30,12 @@ CF_API_TIMEOUT = (10, 30)
 
 
 # Inbounds that bind a port directly (no HTTP path) — replicas not supported
-_NO_REPLICA_SUPPORT = {"vless-tcp-tls-direct", "vmess-ws-cdn", "vless-tcp-reality-direct"}
+_NO_REPLICA_SUPPORT = {"vless-tcp-tls-direct", "vless-tcp-reality-direct"}
 
 # Maps inbound name → (nginx server port, location template)
 _NGINX_PROXY_MAP: Dict[str, tuple] = {
+    "vless-hu-direct":         (8080, "hu"),
+    "vless-hu-cdn":            (8080, "hu"),
     "vless-hu-tls-direct":     (2053, "hu"),
     "vless-hu-tls-cdn":        (2053, "hu"),
     "vless-xhttp-direct":      (8880, "xhttp"),
@@ -166,6 +168,13 @@ class XrayConfig:
         self.reality_public_key: str = ""
         self.reality_short_id: str = ""
         self.reality_sni: str = ""
+        # VLESS Encryption (post-quantum AEAD) for the non-TLS httpupgrade
+        # inbounds: derived deterministically like REALITY so links survive
+        # redeploys. Empty until _setup_vless_encryption populates them.
+        self.vless_enc_private_key: str = ""
+        self.vless_enc_password: str = ""
+        self.vless_enc_decryption: str = ""
+        self.vless_enc_encryption: str = ""
         self.configured_inbounds: List[Dict[str, Any]] = []
         self.xray_config: Dict[str, Any] = {}
         self.warps_ready: bool = False
@@ -307,6 +316,52 @@ class XrayConfig:
             f"{self.config_id}:reality-sid".encode()
         ).hexdigest()[:8]
 
+    def _setup_vless_encryption(self) -> None:
+        """Derive the VLESS Encryption keypair deterministically from the
+        identifier (same idea as REALITY) so the non-TLS httpupgrade links
+        survive redeploys without persisting any key material.
+
+        Authentication uses X25519 (the ephemeral exchange is ML-KEM-768 +
+        X25519, so it stays post-quantum safe either way). The server keeps the
+        private key in `decryption`; clients carry the matching public key
+        ("Password") in `encryption`. Format per Xray-core:
+          decryption: mlkem768x25519plus.native.600s.<PrivateKey>
+          encryption: mlkem768x25519plus.native.0rtt.<Password>
+        """
+        seed = hashlib.sha256(f"{self.config_id}:vless-enc".encode()).digest()
+        seed_b64 = base64.urlsafe_b64encode(seed).decode().rstrip("=")
+        result = exec_command(["xray", "x25519", "-i", seed_b64], capture_output=True)
+        if result.returncode != 0 or not result.stdout:
+            log.error(
+                "xray x25519 failed; VLESS-encryption inbounds will be skipped",
+                hypothesisId="CFG",
+                exit_code=result.returncode,
+            )
+            return
+        # v26 prints "PrivateKey:" / "Password (PublicKey):"; older builds
+        # printed "Private key:" / "Public key:" — accept both.
+        for line in result.stdout.splitlines():
+            label, _, value = line.partition(":")
+            label = label.strip().lower()
+            value = value.strip()
+            if label in ("privatekey", "private key"):
+                self.vless_enc_private_key = value
+            elif label.startswith("password") or label == "public key":
+                self.vless_enc_password = value
+        if not self.vless_enc_private_key or not self.vless_enc_password:
+            self.vless_enc_private_key = self.vless_enc_password = ""
+            log.error(
+                "Could not parse xray x25519 output; VLESS-encryption inbounds will be skipped",
+                hypothesisId="CFG",
+            )
+            return
+        self.vless_enc_decryption = (
+            f"mlkem768x25519plus.native.600s.{self.vless_enc_private_key}"
+        )
+        self.vless_enc_encryption = (
+            f"mlkem768x25519plus.native.0rtt.{self.vless_enc_password}"
+        )
+
     def initialize(self) -> None:
         """Perform all initialization logic. Only executes once."""
         if self.initialized:
@@ -332,7 +387,7 @@ class XrayConfig:
         self.xray_inbounds = {}
         for entry in self.env_config.get(
             "XRAY_INBOUNDS",
-            "vmess-ws-cdn,vless-tcp-tls-direct,vless-tcp-reality-direct,vless-hu-tls-direct,vless-hu-tls-cdn,vless-xhttp-quic-direct,vless-xhttp-quic-cdn,vless-xhttp-direct,vless-xhttp-cdn",
+            "vless-hu-direct,vless-hu-cdn,vless-tcp-tls-direct,vless-tcp-reality-direct,vless-hu-tls-direct,vless-hu-tls-cdn,vless-xhttp-quic-direct,vless-xhttp-quic-cdn,vless-xhttp-direct,vless-xhttp-cdn",
         ).split(","):
             name, _, count = entry.strip().partition(":")
             self.xray_inbounds[name] = int(count) if count.isdigit() else 1
@@ -436,6 +491,7 @@ class XrayConfig:
         # X25519 site reachable from this server.
         self.reality_sni = self.env_config.get("FAKE_WEBSITE", "www.divar.ir")
         self._setup_reality()
+        self._setup_vless_encryption()
 
         # Process Inbounds Template
         def substitute_vars(data: Any, mapping: Dict[str, Any]) -> Any:
@@ -464,15 +520,17 @@ class XrayConfig:
                     "reality_public_key": self.reality_public_key,
                     "reality_short_id": self.reality_short_id,
                     "reality_sni": self.reality_sni,
+                    "vless_enc_decryption": self.vless_enc_decryption,
+                    "vless_enc_encryption": self.vless_enc_encryption,
                 },
             )
             self.configured_inbounds = [
                 ib for ib in all_inbounds if ib.get("name") in self.xray_inbounds
             ]
 
-            # Expand replicas (before vmess link encoding so dict links are still patchable).
-            # Indices start at 1: replica 1 keeps the original port (matched by static
-            # nginx location blocks), replicas 2+ get ports from the 9000+ pool.
+            # Expand replicas. Indices start at 1: replica 1 keeps the original
+            # port (matched by static nginx location blocks), replicas 2+ get
+            # ports from the 9000+ pool.
             expanded: List[Dict[str, Any]] = []
             _replica_port = 9000
             for ib in self.configured_inbounds:
@@ -496,10 +554,6 @@ class XrayConfig:
                 if count > 1:
                     log.info(f"{name}: {count} replicas configured", hypothesisId="CFG")
             self.configured_inbounds = expanded
-
-            for inbound in self.configured_inbounds:
-                if isinstance(inbound.get("link"), dict):
-                    inbound["link"] = generate_vmess_link(inbound["link"])
 
         # Drop any inbound whose TLS cert/key resolved to an empty string after
         # variable substitution. An empty cert would make `xray -test` fail and
@@ -563,6 +617,24 @@ class XrayConfig:
             if skipped:
                 log.warning(
                     f"Skipped {skipped} REALITY inbound(s): key generation failed",
+                    hypothesisId="CFG",
+                )
+
+        # Same idea for VLESS Encryption: an empty decryption string would fail
+        # `xray -test` and bring down the whole container.
+        if not self.vless_enc_decryption:
+            before = len(self.configured_inbounds)
+            self.configured_inbounds = [
+                ib for ib in self.configured_inbounds
+                if not ib.get("inbound", {})
+                .get("settings", {})
+                .get("decryption", "")
+                .startswith("mlkem768x25519plus")
+            ]
+            skipped = before - len(self.configured_inbounds)
+            if skipped:
+                log.warning(
+                    f"Skipped {skipped} VLESS-encryption inbound(s): key generation failed",
                     hypothesisId="CFG",
                 )
 

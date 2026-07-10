@@ -65,7 +65,7 @@ else
 fi
 
 # Write per-port replica location blocks.
-for port in 2053 8880 8443; do
+for port in 2053 8880 8443 8080; do
     mkdir -p "/etc/nginx/locations.d/$port"
     printf '%s\n' "$(printf '%s' "$LOCATIONS" | jq -r ".\"$port\" // empty")" \
         > "/etc/nginx/locations.d/$port/replicas.conf"

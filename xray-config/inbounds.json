@@ -1,41 +1,59 @@
 [
   {
-    "name": "vmess-ws-cdn",
-    "link": {
-      "add": "$cf_clean_ip_domain",
-      "aid": "0",
-      "host": "$subdomain",
-      "id": "$config_id",
-      "net": "ws",
-      "path": "/$nginx_path/cdn",
-      "port": "8080",
-      "ps": "vmess-ws-cdn",
-      "scy": "auto",
-      "sni": "",
-      "tls": "",
-      "type": "",
-      "v": "2"
-    },
-    "cloudflare": true,
+    "name": "vless-hu-direct",
+    "link": "vless://$config_id@$direct_subdomain:8080?type=httpupgrade&host=$direct_subdomain&path=%2F$nginx_path&security=none&encryption=$vless_enc_encryption#vless-hu-direct",
+    "cloudflare": false,
     "inbound": {
-      "tag": "vmess-ws-cdn",
+      "tag": "vless-hu-direct",
       "listen": "0.0.0.0",
-      "port": 8080,
-      "protocol": "vmess",
+      "port": 8005,
+      "protocol": "vless",
       "settings": {
         "clients": [
           {
-            "flow": "",
             "id": "$config_id"
           }
-        ]
+        ],
+        "decryption": "$vless_enc_decryption"
       },
       "streamSettings": {
-        "network": "ws",
-        "wsSettings": {
+        "network": "httpupgrade",
+        "httpupgradeSettings": {
+          "path": "/$nginx_path"
+        }
+      },
+      "sniffing": {
+        "enabled": true,
+        "destOverride": [
+          "http",
+          "tls",
+          "quic"
+        ]
+      }
+    }
+  },
+  {
+    "name": "vless-hu-cdn",
+    "link": "vless://$config_id@$cf_clean_ip_domain:8080?type=httpupgrade&host=$subdomain&path=%2F$nginx_path%2Fcdn&security=none&encryption=$vless_enc_encryption#vless-hu-cdn",
+    "cloudflare": true,
+    "inbound": {
+      "tag": "vless-hu-cdn",
+      "listen": "0.0.0.0",
+      "port": 8055,
+      "protocol": "vless",
+      "settings": {
+        "clients": [
+          {
+            "id": "$config_id"
+          }
+        ],
+        "decryption": "$vless_enc_decryption"
+      },
+      "streamSettings": {
+        "network": "httpupgrade",
+        "httpupgradeSettings": {
           "path": "/$nginx_path/cdn"
-        },
-        "security": "none"
+        }
       },
       "sniffing": {
         "enabled": true,
