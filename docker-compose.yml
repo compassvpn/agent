@@ -247,12 +247,11 @@ volumes:
 
 # Give the default bridge IPv6 so the direct inbounds (reality on 2083/2087 and
 # 443) see real client v6 addresses via ip6tables DNAT, instead of collapsing
-# them to the bridge gateway 172.18.0.1 through docker-proxy. The ULA subnet is
-# internal-only (host<->container), unrelated to the server's public IPv6.
+# them to the bridge gateway through docker-proxy.
+#
+# Neither subnet is pinned here; both come from the daemon's address pools (set
+# in agent.yml): a host-local 10.x block for v4 that stays clear of the host's
+# own networks, and an internal-only ULA for v6. One source of truth.
 networks:
   default:
     enable_ipv6: true
-    ipam:
-      config:
-        - subnet: 172.18.0.0/16
-        - subnet: fd00:c0:ffee::/64

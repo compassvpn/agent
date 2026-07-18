@@ -362,6 +362,41 @@
             executable: /bin/bash
           when: docker_check.rc != 0
 
+    # ---- docker network: non-conflicting address pools ---------------------
+    # Docker allocates bridge subnets from 172.16.0.0/12, which collides with
+    # VNets in that block (common on Azure) and wedges networking. Its built-in
+    # avoidance only covers subnets it auto-picks, not ones it's handed, so pin
+    # both out of that range into a quiet 10.x block: bip moves docker0,
+    # default-address-pools moves the compose network. Docker still skips any
+    # pool range already in use on the host, as a backstop. The trailing v6 ULA
+    # pool feeds the compose network's enable_ipv6 (internal-only, collision-safe
+    # by design), so both families source from here. Also tagged 'deploy' so a
+    # deploy-only run configures the daemon before it starts any containers.
+    - name: Point Docker at non-conflicting address pools
+      tags: [docker, deploy]
+      block:
+        - name: Write /etc/docker/daemon.json
+          ansible.builtin.copy:
+            dest: /etc/docker/daemon.json
+            mode: "0644"
+            content: |
+              {
+                "bip": "10.69.0.1/24",
+                "default-address-pools": [
+                  { "base": "10.70.0.0/16", "size": 24 },
+                  { "base": "10.169.0.0/16", "size": 24 },
+                  { "base": "10.199.0.0/16", "size": 24 },
+                  { "base": "fd00:c0:ffee::/48", "size": 64 }
+                ]
+              }
+          register: docker_daemon
+
+        - name: Restart Docker when the config changed
+          ansible.builtin.systemd_service:
+            name: docker
+            state: restarted
+          when: docker_daemon.changed
+
     # ---- identifier: a stable per-node label, generated once ---------------
     # Also tagged 'deploy' so a deploy-only run can't start containers without an
     # IDENTIFIER (the services hard-fail if it's missing). It's a no-op once set.
