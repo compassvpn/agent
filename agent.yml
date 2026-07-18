@@ -26,9 +26,9 @@
       - "1.1.1.2"
       - "127.0.0.53"
 
-    # Ports opened on the host firewall. 9100 (node-exporter) is intentionally NOT
-    # here - it listens on the host, but only the local Docker bridges can reach
-    # it; the default-deny keeps it closed to the internet.
+    # Ports opened on the host firewall. The metrics ports (9100, 5000, 9550) are
+    # intentionally NOT here - they are bound to loopback and scraped over loopback
+    # by the host-network metric-forwarder, so no firewall rule is needed.
     required_ports:
       - 80
       - 8080

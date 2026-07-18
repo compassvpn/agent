@@ -48,8 +48,9 @@ x-hardening: &hardening
 services:
 
   # Brain of the stack: generates the Xray config, fetches/renews TLS certs via
-  # acme.sh + the Cloudflare API, and runs the config self-tests. Only talks to
-  # the other containers over the internal network - no published ports.
+  # acme.sh + the Cloudflare API, and runs the config self-tests. Talks to the
+  # other containers over the internal network; its only published port is the
+  # metrics endpoint, and that is bound to the host's loopback.
   xray-config:
     build:
       context: ./xray-config
@@ -69,6 +70,8 @@ services:
       - "./shared_lib:/shared_lib:ro"
       - "./env_file:/root/env_file:ro"
       - "/var/log/compassvpn:/var/log/compassvpn:rw"
+    ports:
+      - "127.0.0.1:5000:5000"   # metrics for the host-network metric-forwarder; loopback only, not reachable from outside
 
   # The actual proxy - this is what clients connect to and where all the VPN
   # traffic flows. In "warp" mode it also brings up a WireGuard tunnel for egress.
@@ -157,18 +160,24 @@ services:
       - /var/log/compassvpn:/var/log/compassvpn:ro
       - "xray_geoip:/geoip"   # cache the downloaded GeoIP dbs
       - "./shared_lib:/shared_lib:ro"
+    ports:
+      - "127.0.0.1:9550:9550"   # metrics for the host-network metric-forwarder; loopback only, not reachable from outside
     env_file:
       - env_file          # entrypoint reads DEBUG from here to pick its log level
     environment:
       - PYTHONPATH=/
 
   # Runs Grafana Alloy: scrapes the local metrics (node-exporter, xray-config,
-  # xray-exporter) and ships them off to the remote Grafana endpoint.
+  # xray-exporter) and ships them off to the remote Grafana endpoint. Shares the
+  # host network namespace so every scrape target is 127.0.0.1: loopback traffic
+  # never touches UFW, Docker's bridge subnets, or the host INPUT chain, all of
+  # which vary per host and have broken the node-exporter scrape before.
   metric-forwarder:
     build:
       context: ./metric-forwarder
       dockerfile: Dockerfile
     restart: always
+    network_mode: host
     <<: [*log-small, *hardening]
     cap_drop:
       - ALL          # pure outbound Alloy forwarder; no caps needed
@@ -180,8 +189,6 @@ services:
     volumes:
       - "./shared_lib:/shared_lib:ro"
       - "./env_file:/env_file:ro"
-    extra_hosts:
-      - "host.docker.internal:host-gateway"   # reach node-exporter on the host netns (docker0)
     depends_on:
       - xray-config
       - node-exporter
@@ -189,11 +196,10 @@ services:
   # Standard host metrics (CPU, memory, disk, network). Must share the host
   # network namespace: /proc/net is a symlink to /proc/self/net, so the netdev
   # collector reports whatever netns it runs in - from an isolated netns it
-  # would only see the container's own veth, not the host NICs. It listens on
-  # all interfaces because the docker0 IP is not stable across hosts (Docker
-  # picks the next free pool if 172.17.0.0/16 is taken); UFW's default-deny
-  # keeps 9100 unreachable from outside, and it's not a published port so
-  # Docker's iptables bypass doesn't apply.
+  # would only see the container's own veth, not the host NICs. It binds to
+  # loopback only: the metric-forwarder shares the host netns and scrapes it
+  # over 127.0.0.1, and nothing else - containers, VPN clients proxying to the
+  # server's own IP, or the internet - can reach loopback at all.
   node-exporter:
     image: prom/node-exporter:v1.11.1
     restart: always
@@ -224,7 +230,7 @@ services:
       - '--collector.time'
       - '--collector.stat'
       - '--collector.pressure'
-      - "--web.listen-address=:9100" # blocked externally by UFW; reached by metric-forwarder via host.docker.internal
+      - "--web.listen-address=127.0.0.1:9100" # loopback only; scraped by the host-network metric-forwarder
 
 # Shared cert store: xray-config writes here (acme.sh), xray and nginx read from it.
 volumes:
