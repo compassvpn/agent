@@ -72,10 +72,10 @@ services:
       - "/var/log/compassvpn:/var/log/compassvpn:rw"
     ports:
       # Metrics for the host-network metric-forwarder; loopback only, not
-      # reachable from outside. Host port 25000, not 5000: 5000 is a common
-      # default (Flask, docker registry), and anything below 32768 stays out
-      # of the kernel's ephemeral port range so outbound connections can
-      # never squat the port at deploy time.
+      # reachable from outside. Host port 25000 rather than 5000: 5000 is a
+      # common default (Flask, docker registry), and ports below 32768 sit
+      # outside the kernel's ephemeral range, so an outbound connection can
+      # never be holding the port when the proxy tries to bind it.
       - "127.0.0.1:25000:5000"
 
   # The actual proxy - this is what clients connect to and where all the VPN
@@ -174,9 +174,10 @@ services:
 
   # Runs Grafana Alloy: scrapes the local metrics (node-exporter, xray-config,
   # xray-exporter) and ships them off to the remote Grafana endpoint. Shares the
-  # host network namespace so every scrape target is 127.0.0.1: loopback traffic
-  # never touches UFW, Docker's bridge subnets, or the host INPUT chain, all of
-  # which vary per host and have broken the node-exporter scrape before.
+  # host network namespace so every scrape target is 127.0.0.1: loopback behaves
+  # the same on every host, while container-to-host traffic crosses the host
+  # INPUT chain and depends on the firewall rules and Docker's bridge subnets,
+  # both of which vary per host.
   metric-forwarder:
     build:
       context: ./metric-forwarder
