@@ -71,7 +71,12 @@ services:
       - "./env_file:/root/env_file:ro"
       - "/var/log/compassvpn:/var/log/compassvpn:rw"
     ports:
-      - "127.0.0.1:5000:5000"   # metrics for the host-network metric-forwarder; loopback only, not reachable from outside
+      # Metrics for the host-network metric-forwarder; loopback only, not
+      # reachable from outside. Host port 25000, not 5000: 5000 is a common
+      # default (Flask, docker registry), and anything below 32768 stays out
+      # of the kernel's ephemeral port range so outbound connections can
+      # never squat the port at deploy time.
+      - "127.0.0.1:25000:5000"
 
   # The actual proxy - this is what clients connect to and where all the VPN
   # traffic flows. In "warp" mode it also brings up a WireGuard tunnel for egress.
@@ -161,7 +166,7 @@ services:
       - "xray_geoip:/geoip"   # cache the downloaded GeoIP dbs
       - "./shared_lib:/shared_lib:ro"
     ports:
-      - "127.0.0.1:9550:9550"   # metrics for the host-network metric-forwarder; loopback only, not reachable from outside
+      - "127.0.0.1:29550:9550"   # metrics for the host-network metric-forwarder; loopback only (29550: see the port note on xray-config)
     env_file:
       - env_file          # entrypoint reads DEBUG from here to pick its log level
     environment:
@@ -230,7 +235,7 @@ services:
       - '--collector.time'
       - '--collector.stat'
       - '--collector.pressure'
-      - "--web.listen-address=127.0.0.1:9100" # loopback only; scraped by the host-network metric-forwarder
+      - "--web.listen-address=127.0.0.1:29100" # loopback only; 29100 not 9100 so an apt-installed node-exporter can't collide
 
 # Shared cert store: xray-config writes here (acme.sh), xray and nginx read from it.
 volumes:

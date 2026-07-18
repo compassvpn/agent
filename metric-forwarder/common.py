@@ -105,7 +105,7 @@ prometheus.remote_write "default" {{
 
 prometheus.scrape "node_exporter" {{
   targets = [{{
-    __address__ = "127.0.0.1:9100",
+    __address__ = "127.0.0.1:29100",
   }}]
   scrape_interval = "5m"
   metrics_path    = "/metrics"
@@ -136,7 +136,7 @@ prometheus.relabel "node_exporter" {{
 
 prometheus.scrape "xray" {{
   targets = [{{
-    __address__ = "127.0.0.1:5000",
+    __address__ = "127.0.0.1:25000",
   }}]
   scrape_interval = "5m"
   metrics_path    = "/metrics"
@@ -157,7 +157,7 @@ prometheus.relabel "xray" {{
 
 prometheus.scrape "xray_exporter" {{
   targets = [{{
-    __address__ = "127.0.0.1:9550",
+    __address__ = "127.0.0.1:29550",
   }}]
   scrape_interval = "5m"
   metrics_path    = "/scrape"
