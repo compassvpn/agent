@@ -1,6 +1,7 @@
 import base64
 import copy
 import hashlib
+import ipaddress
 import json
 import re
 import string
@@ -740,14 +741,26 @@ class XrayConfig:
             elif custom_dns_config == "controld":
                 dns_server = "https+local://freedns.controld.com/no-ads-dating-drugs-gambling-malware-typo"
             elif custom_dns_config.startswith(
-                "https+local://"
-            ) or custom_dns_config.startswith("quic+local://"):
+                ("https+local://", "quic+local://", "tls+local://")
+            ):
                 dns_server = custom_dns_config
+            else:
+                # Plain UDP resolver, must be a valid IPv4 address
+                try:
+                    ipaddress.IPv4Address(custom_dns_config)
+                    dns_server = custom_dns_config
+                except ValueError:
+                    pass
             if dns_server:
                 self.xray_config["dns"] = {
                     "servers": [dns_server],
                     "queryStrategy": "UseIPv4",
                 }
+            else:
+                log.warning(
+                    f"CUSTOM_DNS value {custom_dns_config!r} is not a supported format; using default DNS",
+                    hypothesisId="CFG",
+                )
 
         # WARP configuration
         self.warps_ready = False

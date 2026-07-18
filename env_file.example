@@ -39,8 +39,9 @@ NGINX_PATH=compass
 # disguise the reality inbound.
 FAKE_WEBSITE=www.divar.ir
 
-# DNS resolver for outbound lookups: "default", "cf", "controld", or a full
-# https+local:// / quic+local:// URL.
+# DNS resolver for outbound lookups: "default", "cf", "controld", a full
+# https+local:// (DoH) / quic+local:// (DoQ) / tls+local:// (DoT) URL,
+# or a plain IPv4 address (UDP).
 CUSTOM_DNS=controld
 
 # true = verbose logging across all containers, plus xray DNS-query logging and
