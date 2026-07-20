@@ -182,7 +182,7 @@ class XrayService:
                 "http",
                 "--thread",
                 "6",
-                "-d",
+                "--mdelay",
                 "10000",
                 # One retry so a transient blip does not flap a config to down
                 # for the whole cycle.
@@ -194,15 +194,15 @@ class XrayService:
                 # Skip the per-config real-IP lookup; unused (instance IP comes
                 # from get_public_ip) and it adds a request per config.
                 "--rip=false",
-                "-f",
+                "--file",
                 str(CONFIGS_CSV),
-                "-o",
+                "--out",
                 str(VALID_CSV),
-                "-x",
+                "--type",
                 "csv",
             ]
             if is_debug():
-                knife_cmd.append("-v")
+                knife_cmd.append("--verbose")
             exec_command(knife_cmd)
 
             self.valid_configs = csv_to_dict(str(VALID_CSV))
