@@ -118,6 +118,16 @@ prometheus.relabel "node_exporter" {{
     regex         = "node_network_receive_bytes_total|node_network_transmit_bytes_total|node_cpu_seconds_total|node_memory_MemTotal_bytes|node_memory_MemFree_bytes|node_memory_Cached_bytes|node_memory_Buffers_bytes|node_filesystem_size_bytes|node_filesystem_avail_bytes"
     action        = "keep"
   }}
+  // node_cpu_seconds_total emits one series per (core, mode), but only the
+  // idle mode is graphed (CPU Usage = 100 - idle rate). Drop the 7 unused
+  // modes to cut this metric ~8x; the anchored __name__ match leaves idle
+  // and every other kept metric untouched.
+  rule {{
+    source_labels = ["__name__", "mode"]
+    separator     = ";"
+    regex         = "node_cpu_seconds_total;(user|nice|system|iowait|irq|softirq|steal|guest|guest_nice)"
+    action        = "drop"
+  }}
   rule {{
     source_labels = ["device"]
     regex         = "veth.*|io|br.*|lo|docker.*"
