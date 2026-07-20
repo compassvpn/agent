@@ -442,9 +442,15 @@ class XrayConfig:
                         cmd_list = [acme_bin] + shlex.split(cmd_args)
                         result = exec_command(
                             cmd_list,
-                            env={"CF_Token": self.cf_api_token or ""},
+                            # DEBUG=0: our app runs with DEBUG=true, but acme.sh
+                            # reads DEBUG as a numeric log level and spams
+                            # "integer expected".
+                            env={"CF_Token": self.cf_api_token or "", "DEBUG": "0"},
                         )
-                        if result.returncode != 0:
+                        # acme.sh exits 2 when there is nothing to do (e.g. a
+                        # renewal that is not yet due); that is a no-op, not a
+                        # failure.
+                        if result.returncode not in (0, 2):
                             log.error(
                                 "acme.sh command failed",
                                 exit_code=result.returncode,

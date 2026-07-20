@@ -42,10 +42,6 @@ class XrayService:
             clean = {k: v for k, v in config.xray_config.items() if v is not None}
             return json.dumps(clean, indent=4)
 
-        @self.app.route("/valid-configs")
-        def valid_configs_route():
-            return json.dumps(self.valid_configs, indent=4)
-
         @self.app.route("/subdomain")
         def export_certs():
             if not config.initialized or not config.direct_subdomain:
@@ -247,7 +243,9 @@ class XrayService:
                         "-d",
                         config.direct_subdomain,
                     ],
-                    env={"CF_Token": config.cf_api_token or ""},
+                    # DEBUG=0: our app runs with DEBUG=true, but acme.sh reads
+                    # DEBUG as a numeric log level and spams "integer expected".
+                    env={"CF_Token": config.cf_api_token or "", "DEBUG": "0"},
                 )
                 if result.returncode == 0:
                     # Cert files on the shared acme volume are now updated.
