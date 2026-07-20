@@ -1,3 +1,4 @@
+import csv
 import os
 import subprocess
 from typing import List, Optional, Dict, Mapping
@@ -64,23 +65,23 @@ def exec_command(
         raise e
 
 
-def csv_to_dict(filename: str) -> Dict[str, List[str]]:
-    """Converts a CSV file to a dictionary, skipping headers and malformed lines."""
-    data = {}
+def csv_to_dict(filename: str) -> Dict[str, Dict[str, str]]:
+    """Parses xray-knife's CSV output, keyed by config link.
+
+    Uses csv.DictReader so quoted fields (e.g. a `reason` that contains a
+    comma) are parsed by column name instead of by position, which a naive
+    split(",") would get wrong.
+    """
+    data: Dict[str, Dict[str, str]] = {}
     if os.path.exists(filename):
         try:
-            with open(filename, "r", encoding="utf-8") as f:
-                for line in f:
-                    line = line.strip()
-                    if not line:
+            with open(filename, "r", encoding="utf-8", newline="") as f:
+                reader = csv.DictReader(f)
+                for row in reader:
+                    link = row.get("link", "")
+                    if not link.startswith(("vmess://", "vless://")):
                         continue
-                    parts = line.split(",")
-                    # Skip header row or malformed lines
-                    if parts[0] == "link" or not parts[0].startswith(
-                        ("vmess://", "vless://")
-                    ):
-                        continue
-                    data[parts[0]] = parts
+                    data[link] = row
         except Exception as e:
             log.error(f"Error reading CSV {filename}: {e}", hypothesisId="SYS")
     return data
