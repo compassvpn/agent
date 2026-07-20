@@ -184,6 +184,16 @@ class XrayService:
                 "6",
                 "-d",
                 "10000",
+                # One retry so a transient blip does not flap a config to down
+                # for the whole cycle.
+                "--retries",
+                "1",
+                # We only test vmess/vless; pin the core instead of auto-detect.
+                "--core",
+                "xray",
+                # Skip the per-config real-IP lookup; unused (instance IP comes
+                # from get_public_ip) and it adds a request per config.
+                "--rip=false",
                 "-f",
                 str(CONFIGS_CSV),
                 "-o",
