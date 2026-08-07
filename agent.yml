@@ -1,15 +1,13 @@
 ---
-# Provisions and deploys the whole CompassVPN host. agent.sh runs it all; a
-# single stage runs via tags: prepare, docker, identifier, cron, deploy.
+# agent.sh runs the whole thing. A single stage runs via tags:
 #   uv run --frozen ansible-playbook agent.yml --tags deploy
 - name: Provision and deploy the CompassVPN host
   hosts: localhost
   connection: local
   become: true
-  gather_facts: false   # gathered explicitly, once python3 is guaranteed
+  gather_facts: false   # gathered later, once python3 is guaranteed
 
   vars:
-    # Pin the interpreter so local modules don't look for /usr/bin/python.
     ansible_python_interpreter: /usr/bin/python3
     project_dir: "{{ playbook_dir }}"
 
@@ -17,14 +15,14 @@
     auto_update: ""
     redeploy_interval: ""
 
-    # Priority order. Only the ones that answer a ping get applied, so we never
-    # swap working DNS for dead entries.
+    # Priority order, and unreachable ones are dropped before we write
+    # resolv.conf, so we never swap working DNS for dead entries.
     dns_servers:
       - "127.0.0.53"
       - "1.1.1.2"
 
-    # Firewall openings. The metrics ports (29100, 25000, 29550) are deliberately
-    # absent: loopback-bound and scraped over loopback, so no rule is needed.
+    # The metrics ports (29100, 25000, 29550) belong nowhere near this list -
+    # they're loopback-only and scraped over loopback.
     required_ports:
       - 80
       - 8080
@@ -35,8 +33,8 @@
       - 8443
       - 8880
 
-    # Host netns only. Per-netns keys the proxy needs are set again in
-    # docker-compose.yml - a container does not inherit most of these.
+    # Host netns only. Containers don't inherit most of these, so the keys the
+    # proxy needs are set again in docker-compose.yml.
     sysctl_conf_path: /etc/sysctl.d/99-compassvpn.conf
     sysctl_settings:
       fs.file-max: "67108864"
@@ -59,8 +57,8 @@
 
   tasks:
     # ---- prerequisites (every tag) -----------------------------------------
-    # Minimal images can ship without python3 / python3-apt, which the setup and
-    # apt modules need. raw is the only module that works without them.
+    # Minimal images ship without python3 / python3-apt, and raw is the only
+    # module that works before they're there.
     - name: Ensure python3 and python3-apt are present
       ansible.builtin.raw: dpkg -s python3 python3-apt >/dev/null 2>&1 || (apt-get update && apt-get install -y python3 python3-apt)
       changed_when: false
@@ -70,7 +68,7 @@
       ansible.builtin.setup: {}
       tags: always
 
-    # ansible-core needs Python 3.9+, which rules out Ubuntu 20.04 (ships 3.8).
+    # The floor is ansible-core needing Python 3.9+, which rules out Ubuntu 20.04.
     - name: Check supported OS and version (Debian 11+, Ubuntu 22.04+)
       ansible.builtin.assert:
         that:
@@ -116,8 +114,8 @@
               - logrotate
             state: present
 
-        # Our own ports show up as docker-proxy; filter those out so a re-run on
-        # a live box passes. Only a foreign process is a real conflict.
+        # Our own ports show up as docker-proxy, so filter those out or a re-run
+        # on a live box fails on itself.
         - name: Fail early if a required port is held by a non-Docker process
           ansible.builtin.shell: |
             set -o pipefail
@@ -210,7 +208,8 @@
             name: ufw
             state: present
 
-        # Stops UFW reapplying its own sysctl file, which would undo ip_forward.
+        # Otherwise UFW reapplies its own sysctl file and undoes ip_forward,
+        # which breaks Docker networking.
         - name: Point UFW at the system sysctl file
           ansible.builtin.replace:
             path: /etc/default/ufw
@@ -247,7 +246,7 @@
                 else ((configured_ssh_port.stdout | default('') | trim) or '22')
               }}
 
-        # Before enabling UFW, or the deploy cuts off its own connection.
+        # Must come before UFW is enabled, or the deploy locks itself out.
         - name: Allow the SSH port in UFW
           community.general.ufw:
             rule: allow
@@ -359,12 +358,11 @@
 
     # ---- docker network: non-conflicting address pools ---------------------
     # Docker's default 172.16.0.0/12 collides with VNets in that block (common on
-    # Azure) and wedges networking, so move docker0 (bip) and the compose network
-    # (pools) into a quiet 10.x range. The v6 ULA pool feeds enable_ipv6 in
-    # docker-compose.yml. Tagged 'deploy' too, so a deploy-only run configures the
-    # daemon before starting containers.
+    # Azure) and wedges networking, so bip moves docker0 and the pools move the
+    # compose network, both into a quiet 10.x range. The v6 pool is what
+    # enable_ipv6 in docker-compose.yml draws from.
     - name: Point Docker at non-conflicting address pools
-      tags: [docker, deploy]
+      tags: [docker, deploy]   # 'deploy' too, so the daemon is fixed before containers start
       block:
         - name: Write /etc/docker/daemon.json
           ansible.builtin.copy:
@@ -389,7 +387,7 @@
           when: docker_daemon.changed
 
     # ---- identifier: a stable per-node label, generated once ---------------
-    # Tagged 'deploy' too: the services hard-fail without IDENTIFIER. No-op once set.
+    # Tagged 'deploy' as well, since the services hard-fail without IDENTIFIER.
     - name: Ensure a unique node identifier
       tags: [identifier, deploy]
       block:

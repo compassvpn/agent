@@ -1,27 +1,24 @@
-# CompassVPN stack: xray-config (config + TLS certs), xray (the proxy),
-# nginx (TLS front + decoy site), and the metrics trio.
-
-# Shared tuning for the public-facing services (xray, nginx).
+# Shared tuning for the two services that face the public internet.
 x-public-tuned: &public-tuned
   ulimits:
     nofile:
-      # xray's httpupgrade listener wedges for good if accept() hits EMFILE, so
-      # keep the ceiling far out of reach. nginx lowers itself to
-      # worker_rlimit_nofile anyway. 1048576 is the fs.nr_open default ceiling.
+      # xray's httpupgrade listener wedges for good if accept() ever hits
+      # EMFILE, so keep the ceiling far out of reach.
       soft: 1048576
       hard: 1048576
-  # Per-netns keys. A container gets fresh kernel defaults for these, so the
-  # matching lines in agent.yml do not cover it - keep both in sync.
+  # These are per-netns: a container starts from kernel defaults, so the same
+  # keys in agent.yml don't reach it. Change both or neither.
   sysctls:
     - net.core.somaxconn=8192               # xray only; nginx needs listen backlog=
     - net.core.optmem_max=262144
     - net.ipv4.tcp_max_syn_backlog=10240
     - net.ipv4.tcp_fin_timeout=25
-    - net.ipv4.tcp_congestion_control=bbr   # inherited from the host, pinned so it can't drift
-    - "net.ipv4.tcp_rmem=4096 262144 33554432"   # autotune ceiling; default is ~6 MiB
-    - "net.ipv4.tcp_wmem=4096 262144 33554432"   # autotune ceiling; default is ~4 MiB
+    - net.ipv4.tcp_congestion_control=bbr   # pinned; otherwise inherited at container creation
+    # Autotune ceilings. Without these, sockets stop at ~6 MiB recv / 4 MiB send.
+    - "net.ipv4.tcp_rmem=4096 262144 33554432"
+    - "net.ipv4.tcp_wmem=4096 262144 33554432"
     - net.ipv4.tcp_mtu_probing=1            # clients behind broken PMTUD
-    - net.ipv4.tcp_slow_start_after_idle=0  # long-lived bursty connections
+    - net.ipv4.tcp_slow_start_after_idle=0  # long-lived, bursty connections
   logging:
     driver: "json-file"
     options:
@@ -41,8 +38,7 @@ x-hardening: &hardening
 
 services:
 
-  # Generates the Xray config, renews TLS certs (acme.sh + Cloudflare API),
-  # runs the config self-tests.
+  # Generates the Xray config and renews the TLS certs (acme.sh + Cloudflare).
   xray-config:
     build:
       context: ./xray-config
@@ -63,9 +59,8 @@ services:
       - "./env_file:/root/env_file:ro"
       - "/var/log/compassvpn:/var/log/compassvpn:rw"
     ports:
-      # Metrics for the metric-forwarder, loopback only. 25000 not 5000: 5000 is
-      # a common default and sits inside no ephemeral range, so nothing can be
-      # squatting the port when we bind it.
+      # Metrics for the forwarder. Loopback only, and 25000 rather than 5000 so
+      # nothing else on the box can be holding the port when we bind it.
       - "127.0.0.1:25000:5000"
 
   # The proxy. In warp mode it also brings up a WireGuard tunnel for egress.
@@ -99,8 +94,8 @@ services:
       - "2083:2083/tcp"    # vless-tcp-reality-direct, no nginx in front
       - "2087:2087/tcp"    # vless-xhttp-reality-direct, no nginx in front
 
-  # TLS front + camouflage: proxy paths go to xray, everything else to a decoy
-  # site. Builds its config from what xray-config serves at startup.
+  # TLS front and camouflage: proxy paths go to xray, everything else to a
+  # decoy site.
   nginx:
     build:
       context: ./nginx
@@ -137,14 +132,13 @@ services:
     depends_on:
       - xray
 
-  # Turns Xray's access log into Prometheus metrics. Pulls the GeoIP dbs on
-  # first start.
+  # Turns Xray's access log into Prometheus metrics.
   xray-exporter:
     build:
       context: ./xray-exporter
       dockerfile: Dockerfile
     restart: always
-    mem_limit: 256m   # helper: let the OOM killer take this before xray/nginx
+    mem_limit: 256m   # helper: let the OOM killer take this before xray or nginx
     <<: [*log-small, *hardening]
     cap_drop:
       - ALL
@@ -152,24 +146,24 @@ services:
       - xray
     volumes:
       - /var/log/compassvpn:/var/log/compassvpn:ro
-      - "xray_geoip:/geoip"
+      - "xray_geoip:/geoip"   # so we don't refetch the GeoIP dbs on every restart
       - "./shared_lib:/shared_lib:ro"
     ports:
-      - "127.0.0.1:29550:9550"   # loopback only; 29550 not 9550, see xray-config
+      - "127.0.0.1:29550:9550"   # loopback only, offset port; same reason as xray-config
     env_file:
-      - env_file          # entrypoint reads DEBUG for its log level
+      - env_file
     environment:
       - PYTHONPATH=/
 
-  # Grafana Alloy: scrapes the local metrics and ships them to Grafana. Host
-  # netns so every target is 127.0.0.1 - same on every host, unlike
-  # container-to-host traffic, which depends on firewall and bridge subnets.
+  # Grafana Alloy: scrapes the local metrics and ships them out. Host netns so
+  # every target is 127.0.0.1, which behaves the same everywhere;
+  # container-to-host traffic would depend on the firewall and bridge subnets.
   metric-forwarder:
     build:
       context: ./metric-forwarder
       dockerfile: Dockerfile
     restart: always
-    mem_limit: 512m   # Alloy buffers when the remote endpoint is unreachable
+    mem_limit: 512m   # Alloy buffers when it can't reach the remote endpoint
     network_mode: host
     <<: [*log-small, *hardening]
     cap_drop:
@@ -186,8 +180,8 @@ services:
       - xray-config
       - node-exporter
 
-  # Host metrics. Needs the host netns or the netdev collector sees only the
-  # container's veth instead of the host NICs.
+  # Host metrics. Needs the host netns, or the netdev collector reports the
+  # container's own veth instead of the real NICs.
   node-exporter:
     image: prom/node-exporter:v1.11.1
     restart: always
@@ -197,7 +191,7 @@ services:
     cap_drop:
       - ALL
     read_only: true
-    user: "65534:65534"   # nobody
+    user: "65534:65534"
     volumes:
       - "/proc:/host/proc:ro"
       - "/sys:/host/sys:ro"
@@ -209,7 +203,7 @@ services:
       - "--path.procfs=/host/proc"
       - "--path.sysfs=/host/sys"
       - "--path.rootfs=/rootfs"
-      # only collect what we graph
+      # only what we actually graph
       - '--collector.disable-defaults'
       - '--collector.uname'
       - '--collector.cpu'
@@ -219,15 +213,14 @@ services:
       - '--collector.time'
       - '--collector.stat'
       - '--collector.pressure'
-      - "--web.listen-address=127.0.0.1:29100" # loopback only; 29100 avoids a clash with an apt-installed node-exporter
+      - "--web.listen-address=127.0.0.1:29100"   # loopback only; offset so an apt-installed node-exporter can't collide
 
 volumes:
   acme:
   xray_geoip:
 
-# IPv6 on the bridge so the direct inbounds see real client v6 addresses via
-# ip6tables DNAT instead of the bridge gateway. Subnets come from the daemon
-# address pools in agent.yml, not pinned here.
+# IPv6 on the bridge so the direct inbounds see real client v6 addresses
+# instead of the gateway. Subnets come from the daemon pools in agent.yml.
 networks:
   default:
     enable_ipv6: true
