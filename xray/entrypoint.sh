@@ -21,7 +21,7 @@ exit 0
 EOF
 chmod +x /usr/sbin/resolvconf
 
-if [ "$XRAY_OUTBOUND" = "warp" ]; then
+if [ "$XRAY_OUTBOUND" = "warp" ] || [ "$XRAY_OUTBOUND" = "warp-selective" ]; then
   # xray-config upstream URL for WireGuard configs
   WG_CONFIGS_URL="http://xray-config:5000/wg-configs"
 

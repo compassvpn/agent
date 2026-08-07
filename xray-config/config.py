@@ -768,7 +768,9 @@ class XrayConfig:
                     hypothesisId="CFG",
                 )
 
-        # WARP configuration
+        # WARP configuration. "warp" gives every inbound its own tunnel;
+        # "warp-selective" keeps one shared tunnel and only sends WARP_DOMAINS
+        # through it, everything else stays on the direct outbound.
         self.warps_ready = False
         self.wg_configs = {}
         warp_active = False
@@ -776,10 +778,26 @@ class XrayConfig:
             ib for ib in self.configured_inbounds
             if "inbound" in ib and "tag" in ib["inbound"]
         ]
-        if self.env_config.get("XRAY_OUTBOUND") == "warp":
+        outbound_mode = self.env_config.get("XRAY_OUTBOUND", "direct")
+        selective = outbound_mode == "warp-selective"
+        warp_domains = [
+            d.strip()
+            for d in self.env_config.get("WARP_DOMAINS", "").split(",")
+            if d.strip()
+        ]
+        if selective and not warp_domains:
+            log.warning(
+                "XRAY_OUTBOUND is warp-selective but WARP_DOMAINS is empty; "
+                "using direct outbound",
+                hypothesisId="WARP",
+            )
+            selective = False
+            outbound_mode = "direct"
+
+        if outbound_mode in ("warp", "warp-selective"):
             try:
                 self.warps = []
-                for i in range(len(active_inbounds)):
+                for i in range(1 if selective else len(active_inbounds)):
                     if i > 0:
                         sleep(2)
                     self.warps.append(register_warp())
@@ -791,6 +809,12 @@ class XrayConfig:
                     hypothesisId="WARP",
                     error=str(e),
                 )
+
+        direct_outbound = {
+            "tag": "direct",
+            "protocol": "freedom",
+            "settings": {"domainStrategy": "UseIPv4"},
+        }
 
         if warp_active:
             for i, warp in enumerate(self.warps):
@@ -810,45 +834,51 @@ AllowedIPs = 0.0.0.0/0, ::/0
 Endpoint = engage.cloudflareclient.com:2408
 """
 
-            self.xray_config["routing"]["domainStrategy"] = "IPOnDemand"
+            if selective:
+                # Appended, so the block rules above still win over WARP_DOMAINS.
+                if active_inbounds:
+                    self.xray_config["routing"]["rules"].append(
+                        {
+                            "inboundTag": [
+                                ib["inbound"]["tag"] for ib in active_inbounds
+                            ],
+                            "domain": warp_domains,
+                            "outboundTag": "warp0",
+                        }
+                    )
+            else:
+                self.xray_config["routing"]["domainStrategy"] = "IPOnDemand"
 
-            for i, ib in enumerate(active_inbounds):
-                tag = ib["inbound"]["tag"]
-                self.xray_config["routing"]["rules"].insert(
-                    i,
-                    {
-                        "inboundTag": [tag],
-                        "outboundTag": f"warp{i}",
-                    },
-                )
-
-            for i, warp in enumerate(self.warps):
-                self.xray_config["outbounds"].append(
-                    {
-                        "tag": f"warp{i}",
-                        "protocol": "freedom",
-                        "settings": {"domainStrategy": "UseIPv4"},
-                        "streamSettings": {
-                            "sockopt": {"tcpFastOpen": True, "interface": f"wg{i}"}
+                for i, ib in enumerate(active_inbounds):
+                    tag = ib["inbound"]["tag"]
+                    self.xray_config["routing"]["rules"].insert(
+                        i,
+                        {
+                            "inboundTag": [tag],
+                            "outboundTag": f"warp{i}",
                         },
-                    }
-                )
+                    )
 
-            self.xray_config["outbounds"].append(
+            warp_outbounds = [
                 {
-                    "tag": "direct",
+                    "tag": f"warp{i}",
                     "protocol": "freedom",
                     "settings": {"domainStrategy": "UseIPv4"},
+                    "streamSettings": {
+                        "sockopt": {"tcpFastOpen": True, "interface": f"wg{i}"}
+                    },
                 }
+                for i in range(len(self.warps))
+            ]
+            # Unmatched traffic goes to the first outbound, so direct leads in
+            # selective mode.
+            self.xray_config["outbounds"] += (
+                [direct_outbound] + warp_outbounds
+                if selective
+                else warp_outbounds + [direct_outbound]
             )
         else:
-            self.xray_config["outbounds"].append(
-                {
-                    "tag": "direct",
-                    "protocol": "freedom",
-                    "settings": {"domainStrategy": "UseIPv4"},
-                }
-            )
+            self.xray_config["outbounds"].append(direct_outbound)
 
         self.xray_config["outbounds"] += [
             {"tag": "blocked", "protocol": "blackhole", "settings": {}}

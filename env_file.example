@@ -19,8 +19,14 @@ CF_API_TOKEN=
 CF_ZONE_ID=
 CF_CLEAN_IP_DOMAIN=
 
-# Egress mode: "direct", or "warp" to route out through a WireGuard/WARP tunnel.
+# Egress mode: "direct", "warp" to route everything out through a WireGuard/WARP
+# tunnel, or "warp-selective" to send only WARP_DOMAINS through it.
 XRAY_OUTBOUND=direct
+
+# Domains routed through WARP when XRAY_OUTBOUND=warp-selective (comma-separated,
+# geosite: prefixes work). Useful for services that reject data-center IPs.
+# Empty falls back to direct.
+WARP_DOMAINS=
 
 # Inbounds to enable (comma-separated). Append :<count> for replicas via path-based
 # routing, e.g. vless-hu-tls-cdn:3
