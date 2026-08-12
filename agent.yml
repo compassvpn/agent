@@ -45,6 +45,11 @@
       net.core.netdev_max_backlog: "32768"
       net.netfilter.nf_conntrack_max: "1048576"
       net.netfilter.nf_conntrack_buckets: "262144"
+      # Default is 5 days, so dead flows pile up. 7440s is just over the 2h
+      # keepalive Go uses by default, so live flows keep refreshing.
+      net.netfilter.nf_conntrack_tcp_timeout_established: "7440"
+      # Conntrack entries only; socket TIME_WAIT is separate.
+      net.netfilter.nf_conntrack_tcp_timeout_time_wait: "30"
 
     compassvpn_log_path: /var/log/compassvpn
     compassvpn_log_files:
