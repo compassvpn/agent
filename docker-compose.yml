@@ -19,6 +19,10 @@ x-public-tuned: &public-tuned
     - "net.ipv4.tcp_wmem=4096 262144 33554432"
     - net.ipv4.tcp_mtu_probing=1            # clients behind broken PMTUD
     - net.ipv4.tcp_slow_start_after_idle=0  # long-lived, bursty connections
+    # One outbound dial per proxied connection, so the default ~28K ephemeral
+    # ports run out at peak. ~64K instead, plus safe TIME_WAIT reuse.
+    - "net.ipv4.ip_local_port_range=1024 65535"
+    - net.ipv4.tcp_tw_reuse=1
   logging:
     driver: "json-file"
     options:
