@@ -694,6 +694,50 @@ class XrayConfig:
             ]
         )
 
+        # Same blocks as before, split across named blackhole tags so the stats
+        # API shows which category dropped what. Domain, protocol and port rules
+        # come first: matching stops at the first hit, so anything caught here
+        # never pays for the DNS lookup that an ip rule triggers under
+        # IPOnDemand.
+        block_rules: List[Dict[str, Any]] = [
+            {
+                "outboundTag": "blocked",
+                "domain": [
+                    "geosite:private",
+                    "regexp:.*\\.ir$",
+                    "regexp:.*\\.xn--mgba3a4f16a$",
+                    "ext:geosite_IR.dat:ir",
+                ],
+            },
+            {"outboundTag": "abuse-torrent", "protocol": ["bittorrent"]},
+            {
+                "outboundTag": "abuse-malware",
+                "domain": [
+                    "ext:geosite_IR.dat:category-ads-all",
+                    "ext:geosite_IR.dat:malware",
+                    "ext:geosite_IR.dat:phishing",
+                    "ext:geosite_IR.dat:cryptominers",
+                ],
+            },
+        ]
+
+        if self.anti_abuse:
+            block_rules.append(
+                {"outboundTag": "abuse-port", "network": "tcp", "port": ABUSE_PORTS}
+            )
+            log.info(
+                f"Anti-abuse on: blocking outbound TCP {ABUSE_PORTS}",
+                hypothesisId="CFG",
+            )
+
+        block_rules += [
+            {"outboundTag": "blocked", "ip": ["geoip:private", "ext:geoip_IR.dat:ir"]},
+            {
+                "outboundTag": "abuse-malware",
+                "ip": ["ext:geoip_IR.dat:phishing", "ext:geoip_IR.dat:malware"],
+            },
+        ]
+
         self.xray_config = {
             "log": {
                 "access": str(XRAY_ACCESS_LOG),
@@ -702,42 +746,16 @@ class XrayConfig:
                 "dnsLog": self.is_debug_enabled,
             },
             "routing": {
-                "domainStrategy": "AsIs",
-                # Same blocks as before, just split across named blackhole tags
-                # so the stats API shows which category dropped what.
-                "rules": [
-                    {"inboundTag": ["doko"], "outboundTag": "api"},
-                    {
-                        "outboundTag": "blocked",
-                        "ip": ["geoip:private", "ext:geoip_IR.dat:ir"],
-                    },
-                    {
-                        "outboundTag": "blocked",
-                        "domain": [
-                            "geosite:private",
-                            "regexp:.*\\.ir$",
-                            "regexp:.*\\.xn--mgba3a4f16a$",
-                            "ext:geosite_IR.dat:ir",
-                        ],
-                    },
-                    {"outboundTag": "abuse-torrent", "protocol": ["bittorrent"]},
-                    {
-                        "outboundTag": "abuse-malware",
-                        "ip": [
-                            "ext:geoip_IR.dat:phishing",
-                            "ext:geoip_IR.dat:malware",
-                        ],
-                    },
-                    {
-                        "outboundTag": "abuse-malware",
-                        "domain": [
-                            "ext:geosite_IR.dat:category-ads-all",
-                            "ext:geosite_IR.dat:malware",
-                            "ext:geosite_IR.dat:phishing",
-                            "ext:geosite_IR.dat:cryptominers",
-                        ],
-                    },
-                ],
+                # AsIs never matched an ip rule against a destination given as a
+                # domain, so geoip:private and the malware IP lists only fired on
+                # bare IPs. A domain pointed at the host LAN or 169.254.169.254
+                # walked straight through. IPOnDemand resolves when matching hits
+                # an ip rule, which is also the only strategy that survives the
+                # inboundTag-only warp rules (IPIfNonMatch never re-matches once
+                # those hit).
+                "domainStrategy": "IPOnDemand",
+                "rules": [{"inboundTag": ["doko"], "outboundTag": "api"}]
+                + block_rules,
             },
             "dns": None,
             "inbounds": inbounds_list,
@@ -756,19 +774,6 @@ class XrayConfig:
             "fakeDns": None,
             "_cert_serial": self._cert_serial,
         }
-
-        if self.anti_abuse:
-            self.xray_config["routing"]["rules"].append(
-                {
-                    "outboundTag": "abuse-port",
-                    "network": "tcp",
-                    "port": ABUSE_PORTS,
-                }
-            )
-            log.info(
-                f"Anti-abuse on: blocking outbound TCP {ABUSE_PORTS}",
-                hypothesisId="CFG",
-            )
 
         # Custom DNS configuration
         custom_dns_config = self.env_config.get("CUSTOM_DNS", "default").strip()
@@ -885,8 +890,6 @@ Endpoint = engage.cloudflareclient.com:2408
                         }
                     )
             else:
-                self.xray_config["routing"]["domainStrategy"] = "IPOnDemand"
-
                 # Appended for the same reason as the selective rule above. An
                 # inboundTag-only rule matches everything from that inbound, so
                 # putting these first shadowed every block rule below them and
