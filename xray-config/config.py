@@ -30,12 +30,8 @@ from shared_lib.paths import (
 CF_API_TIMEOUT = (10, 30)
 
 
-# Destination ports blocked when ANTI_ABUSE is on. Tor's default exit policy
-# (25 SMTP, 119/563 usenet, 135-139/445 SMB, 1214/4661-4666/6346-6429/6699/
-# 6881-6999 P2P), plus telnet 23 and adb 5555 for the IoT scanners, memcached
-# 11211, and 2525 so the port 25 block can't be walked around. Redis 6379 is
-# already inside the Gnutella range. Mail submission (465, 587) stays open, so
-# mail clients keep working.
+# Tor's default exit policy (spam, usenet, SMB, old P2P) plus telnet, adb,
+# memcached and 2525. 465 and 587 stay open so mail clients still work.
 ABUSE_PORTS = (
     "23,25,119,135-139,445,563,1214,2525,4661-4666,5555,"
     "6346-6429,6699,6881-6999,11211"
@@ -700,12 +696,9 @@ class XrayConfig:
             ]
         )
 
-        # Blocks split across named blackhole tags, so the stats API shows which
-        # category dropped what. Everything here is unconditional except the port
-        # rule; the abuse- prefix marks the category, not the flag. Domain,
-        # protocol and port rules come first: matching stops at the first hit, so
-        # anything caught here never pays for the DNS lookup an ip rule triggers
-        # under IPOnDemand.
+        # One tag per category so the stats say what got dropped. Domain and port
+        # rules go before the ip ones: first match wins, so they skip the DNS
+        # lookup IPOnDemand needs.
         block_rules: List[Dict[str, Any]] = [
             {
                 "outboundTag": "blocked",
@@ -756,13 +749,10 @@ class XrayConfig:
                 "dnsLog": self.is_debug_enabled,
             },
             "routing": {
-                # AsIs never matched an ip rule against a destination given as a
-                # domain, so geoip:private and the malware IP lists only fired on
-                # bare IPs. A domain pointed at the host LAN or 169.254.169.254
-                # walked straight through. IPOnDemand resolves when matching hits
-                # an ip rule, which is also the only strategy that survives the
-                # inboundTag-only warp rules (IPIfNonMatch never re-matches once
-                # those hit).
+                # AsIs never matched ip rules against a domain, so anything aimed
+                # at the LAN or 169.254.169.254 walked through. IPIfNonMatch is no
+                # good either: the inboundTag warp rules always match, so its
+                # second pass never runs.
                 "domainStrategy": "IPOnDemand",
                 "rules": [{"inboundTag": ["doko"], "outboundTag": "api"}]
                 + block_rules,
@@ -808,9 +798,8 @@ class XrayConfig:
                         hypothesisId="CFG",
                     )
 
-        # Anti-abuse wants a filtering resolver. Anything the operator picked
-        # themselves is kept; the node's own resolver and cf's malware-only
-        # filter are replaced by ControlD, which also covers ads and typos.
+        # Keep whatever the operator picked. The node's own resolver and cf get
+        # swapped for ControlD, which filters more.
         if self.anti_abuse and dns_server in (None, CF_DNS):
             dns_server = CONTROLD_DNS
             log.info("Anti-abuse on: using the ControlD resolver", hypothesisId="CFG")
@@ -933,8 +922,8 @@ Endpoint = engage.cloudflareclient.com:2408
         else:
             self.xray_config["outbounds"].append(direct_outbound)
 
-        # One blackhole per block category. Always all of them, even when a tag
-        # has no rule pointing at it, so the stats series don't come and go.
+        # All of them always, even unused ones, so the stats series don't come
+        # and go.
         self.xray_config["outbounds"] += [
             {"tag": tag, "protocol": "blackhole", "settings": {}}
             for tag in (
