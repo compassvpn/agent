@@ -849,14 +849,16 @@ Endpoint = engage.cloudflareclient.com:2408
             else:
                 self.xray_config["routing"]["domainStrategy"] = "IPOnDemand"
 
+                # Appended for the same reason as the selective rule above. An
+                # inboundTag-only rule matches everything from that inbound, so
+                # putting these first shadowed every block rule below them and
+                # sent torrents, private and IR traffic straight out via WARP.
                 for i, ib in enumerate(active_inbounds):
-                    tag = ib["inbound"]["tag"]
-                    self.xray_config["routing"]["rules"].insert(
-                        i,
+                    self.xray_config["routing"]["rules"].append(
                         {
-                            "inboundTag": [tag],
+                            "inboundTag": [ib["inbound"]["tag"]],
                             "outboundTag": f"warp{i}",
-                        },
+                        }
                     )
 
             warp_outbounds = [
