@@ -14,7 +14,7 @@ import requests
 
 from shared_lib.network import get_public_ip
 from shared_lib.xray import register_warp
-from shared_lib.config import load_env, get_identifier
+from shared_lib.config import load_env, get_identifier, env_flag
 from shared_lib.system import exec_command
 from shared_lib.logger import log, is_debug
 from shared_lib.paths import (
@@ -29,6 +29,14 @@ from shared_lib.paths import (
 # hang startup forever.
 CF_API_TIMEOUT = (10, 30)
 
+
+# Destination ports blocked when ANTI_ABUSE is on. This is Tor's default exit
+# policy: SMTP, usenet, NetBIOS/SMB and the legacy P2P ranges. Mail submission
+# (465, 587) stays open, so normal mail clients keep working.
+ABUSE_PORTS = "25,119,135-139,445,563,1214,4661-4666,6346-6429,6699,6881-6999"
+
+CF_DNS = "https+local://security.cloudflare-dns.com/dns-query"
+CONTROLD_DNS = "https+local://freedns.controld.com/no-ads-dating-drugs-gambling-malware-typo"
 
 # Inbounds that bind a port directly (no HTTP path) — replicas not supported
 _NO_REPLICA_SUPPORT = {"vless-tcp-tls-direct", "vless-tcp-reality-direct", "vless-xhttp-reality-direct"}
@@ -153,6 +161,7 @@ class XrayConfig:
         """Initialize instance attributes to hold shared variables."""
         self.env_config: Dict[str, str] = {}
         self.is_debug_enabled: bool = False
+        self.anti_abuse: bool = False
         self.config_id: str = ""
         self.config_uuid: str = ""
         self.cf_api_token: Optional[str] = None
@@ -372,6 +381,7 @@ class XrayConfig:
 
         self.env_config = load_env()
         self.is_debug_enabled = is_debug()
+        self.anti_abuse = env_flag("ANTI_ABUSE")
         log.debug(
             "Loaded env_config", hypothesisId="CFG", keys=list(self.env_config.keys())
         )
@@ -693,18 +703,14 @@ class XrayConfig:
             },
             "routing": {
                 "domainStrategy": "AsIs",
+                # Same blocks as before, just split across named blackhole tags
+                # so the stats API shows which category dropped what.
                 "rules": [
                     {"inboundTag": ["doko"], "outboundTag": "api"},
                     {
                         "outboundTag": "blocked",
-                        "ip": [
-                            "geoip:private",
-                            "ext:geoip_IR.dat:ir",
-                            "ext:geoip_IR.dat:phishing",
-                            "ext:geoip_IR.dat:malware",
-                        ],
+                        "ip": ["geoip:private", "ext:geoip_IR.dat:ir"],
                     },
-                    {"outboundTag": "blocked", "protocol": ["bittorrent"]},
                     {
                         "outboundTag": "blocked",
                         "domain": [
@@ -712,6 +718,19 @@ class XrayConfig:
                             "regexp:.*\\.ir$",
                             "regexp:.*\\.xn--mgba3a4f16a$",
                             "ext:geosite_IR.dat:ir",
+                        ],
+                    },
+                    {"outboundTag": "abuse-torrent", "protocol": ["bittorrent"]},
+                    {
+                        "outboundTag": "abuse-malware",
+                        "ip": [
+                            "ext:geoip_IR.dat:phishing",
+                            "ext:geoip_IR.dat:malware",
+                        ],
+                    },
+                    {
+                        "outboundTag": "abuse-malware",
+                        "domain": [
                             "ext:geosite_IR.dat:category-ads-all",
                             "ext:geosite_IR.dat:malware",
                             "ext:geosite_IR.dat:phishing",
@@ -738,14 +757,27 @@ class XrayConfig:
             "_cert_serial": self._cert_serial,
         }
 
+        if self.anti_abuse:
+            self.xray_config["routing"]["rules"].append(
+                {
+                    "outboundTag": "abuse-port",
+                    "network": "tcp",
+                    "port": ABUSE_PORTS,
+                }
+            )
+            log.info(
+                f"Anti-abuse on: blocking outbound TCP {ABUSE_PORTS}",
+                hypothesisId="CFG",
+            )
+
         # Custom DNS configuration
-        custom_dns_config = self.env_config.get("CUSTOM_DNS", "default")
-        if custom_dns_config != "default":
-            dns_server = None
+        custom_dns_config = self.env_config.get("CUSTOM_DNS", "default").strip()
+        dns_server = None
+        if custom_dns_config not in ("", "default"):
             if custom_dns_config == "cf":
-                dns_server = "https+local://security.cloudflare-dns.com/dns-query"
+                dns_server = CF_DNS
             elif custom_dns_config == "controld":
-                dns_server = "https+local://freedns.controld.com/no-ads-dating-drugs-gambling-malware-typo"
+                dns_server = CONTROLD_DNS
             elif custom_dns_config.startswith(
                 ("https+local://", "quic+local://", "tls+local://")
             ):
@@ -756,17 +788,23 @@ class XrayConfig:
                     ipaddress.IPv4Address(custom_dns_config)
                     dns_server = custom_dns_config
                 except ValueError:
-                    pass
-            if dns_server:
-                self.xray_config["dns"] = {
-                    "servers": [dns_server],
-                    "queryStrategy": "UseIPv4",
-                }
-            else:
-                log.warning(
-                    f"CUSTOM_DNS value {custom_dns_config!r} is not a supported format; using default DNS",
-                    hypothesisId="CFG",
-                )
+                    log.warning(
+                        f"CUSTOM_DNS value {custom_dns_config!r} is not a supported format; using default DNS",
+                        hypothesisId="CFG",
+                    )
+
+        # Anti-abuse wants a filtering resolver. Anything the operator picked
+        # themselves is kept; the node's own resolver and cf's malware-only
+        # filter are replaced by ControlD, which also covers ads and typos.
+        if self.anti_abuse and dns_server in (None, CF_DNS):
+            dns_server = CONTROLD_DNS
+            log.info("Anti-abuse on: using the ControlD resolver", hypothesisId="CFG")
+
+        if dns_server:
+            self.xray_config["dns"] = {
+                "servers": [dns_server],
+                "queryStrategy": "UseIPv4",
+            }
 
         # WARP configuration. "warp" gives every inbound its own tunnel;
         # "warp-selective" keeps one shared tunnel and only sends WARP_DOMAINS
@@ -882,8 +920,11 @@ Endpoint = engage.cloudflareclient.com:2408
         else:
             self.xray_config["outbounds"].append(direct_outbound)
 
+        # One blackhole per block category. Always all of them, even when a tag
+        # has no rule pointing at it, so the stats series don't come and go.
         self.xray_config["outbounds"] += [
-            {"tag": "blocked", "protocol": "blackhole", "settings": {}}
+            {"tag": tag, "protocol": "blackhole", "settings": {}}
+            for tag in ("blocked", "abuse-torrent", "abuse-malware", "abuse-port")
         ]
 
         if not active_inbounds:

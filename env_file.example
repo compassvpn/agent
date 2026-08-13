@@ -52,6 +52,12 @@ FAKE_WEBSITE=www.divar.ir
 # or a plain IPv4 address (UDP).
 CUSTOM_DNS=controld
 
+# Extra protection against abuse complaints from your provider (Hetzner and
+# friends). Blocks outbound SMTP, usenet, SMB and the old P2P port ranges (Tor's
+# default exit policy), and forces the filtering ControlD resolver unless you set
+# your own CUSTOM_DNS. Mail submission on 465 and 587 keeps working. Use true/false.
+ANTI_ABUSE=false
+
 # true = verbose logging across all containers, plus xray DNS-query logging and
 # a debug.log file. Use true/false.
 DEBUG=false

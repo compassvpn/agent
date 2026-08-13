@@ -89,6 +89,14 @@ def write_env(
         raise e
 
 
+def env_flag(name: str, default: bool = False) -> bool:
+    """Read a true/false env var, tolerating TRUE/True and quotes (like DEBUG)."""
+    value = load_env().get(name)
+    if value is None:
+        return default
+    return value.strip().strip("'\"").lower() == "true"
+
+
 def get_identifier() -> str:
     """
     Retrieves the system identifier from environment variables or config file.
