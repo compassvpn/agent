@@ -54,10 +54,9 @@ CUSTOM_DNS=controld
 
 # Extra protection against abuse complaints from your provider (Hetzner and
 # friends). Blocks the outbound ports abuse comes from - SMTP, telnet, usenet,
-# SMB and the old P2P ranges - plus the malware, phishing and cryptominer lists,
-# and forces the filtering ControlD resolver unless you set your own CUSTOM_DNS.
-# Mail submission on 465 and 587 keeps working, so normal mail clients are fine.
-# Use true/false.
+# SMB and the old P2P ranges - and forces the filtering ControlD resolver unless
+# you set your own CUSTOM_DNS. Mail submission on 465 and 587 keeps working, so
+# normal mail clients are fine. Use true/false.
 ANTI_ABUSE=false
 
 # true = verbose logging across all containers, plus xray DNS-query logging and
