@@ -700,22 +700,22 @@ class XrayConfig:
         # rules go before the ip ones: first match wins, so they skip the DNS
         # lookup IPOnDemand needs.
         block_rules: List[Dict[str, Any]] = [
+            {"outboundTag": "block-private", "domain": ["geosite:private"]},
             {
-                "outboundTag": "blocked",
+                "outboundTag": "block-iran",
                 "domain": [
-                    "geosite:private",
                     "regexp:.*\\.ir$",
                     "regexp:.*\\.xn--mgba3a4f16a$",
                     "ext:geosite_IR.dat:ir",
                 ],
             },
-            {"outboundTag": "abuse-torrent", "protocol": ["bittorrent"]},
+            {"outboundTag": "block-torrent", "protocol": ["bittorrent"]},
             {
-                "outboundTag": "blocked-ads",
+                "outboundTag": "block-ads",
                 "domain": ["ext:geosite_IR.dat:category-ads-all"],
             },
             {
-                "outboundTag": "abuse-malware",
+                "outboundTag": "block-malware",
                 "domain": [
                     "ext:geosite_IR.dat:malware",
                     "ext:geosite_IR.dat:phishing",
@@ -726,7 +726,7 @@ class XrayConfig:
 
         if self.anti_abuse:
             block_rules.append(
-                {"outboundTag": "abuse-port", "network": "tcp", "port": ABUSE_PORTS}
+                {"outboundTag": "block-ports", "network": "tcp", "port": ABUSE_PORTS}
             )
             log.info(
                 f"Anti-abuse on: blocking outbound TCP {ABUSE_PORTS}",
@@ -734,9 +734,10 @@ class XrayConfig:
             )
 
         block_rules += [
-            {"outboundTag": "blocked", "ip": ["geoip:private", "ext:geoip_IR.dat:ir"]},
+            {"outboundTag": "block-private", "ip": ["geoip:private"]},
+            {"outboundTag": "block-iran", "ip": ["ext:geoip_IR.dat:ir"]},
             {
-                "outboundTag": "abuse-malware",
+                "outboundTag": "block-malware",
                 "ip": ["ext:geoip_IR.dat:phishing", "ext:geoip_IR.dat:malware"],
             },
         ]
@@ -927,11 +928,12 @@ Endpoint = engage.cloudflareclient.com:2408
         self.xray_config["outbounds"] += [
             {"tag": tag, "protocol": "blackhole", "settings": {}}
             for tag in (
-                "blocked",
-                "blocked-ads",
-                "abuse-torrent",
-                "abuse-malware",
-                "abuse-port",
+                "block-private",
+                "block-iran",
+                "block-ads",
+                "block-torrent",
+                "block-malware",
+                "block-ports",
             )
         ]
 
