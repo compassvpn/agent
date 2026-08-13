@@ -30,10 +30,16 @@ from shared_lib.paths import (
 CF_API_TIMEOUT = (10, 30)
 
 
-# Destination ports blocked when ANTI_ABUSE is on. This is Tor's default exit
-# policy: SMTP, usenet, NetBIOS/SMB and the legacy P2P ranges. Mail submission
-# (465, 587) stays open, so normal mail clients keep working.
-ABUSE_PORTS = "25,119,135-139,445,563,1214,4661-4666,6346-6429,6699,6881-6999"
+# Destination ports blocked when ANTI_ABUSE is on. Tor's default exit policy
+# (25 SMTP, 119/563 usenet, 135-139/445 SMB, 1214/4661-4666/6346-6429/6699/
+# 6881-6999 P2P), plus telnet 23 and adb 5555 for the IoT scanners, memcached
+# 11211, and 2525 so the port 25 block can't be walked around. Redis 6379 is
+# already inside the Gnutella range. Mail submission (465, 587) stays open, so
+# mail clients keep working.
+ABUSE_PORTS = (
+    "23,25,119,135-139,445,563,1214,2525,4661-4666,5555,"
+    "6346-6429,6699,6881-6999,11211"
+)
 
 CF_DNS = "https+local://security.cloudflare-dns.com/dns-query"
 CONTROLD_DNS = "https+local://freedns.controld.com/no-ads-dating-drugs-gambling-malware-typo"
