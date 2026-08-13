@@ -700,11 +700,10 @@ class XrayConfig:
             ]
         )
 
-        # Same blocks as before, split across named blackhole tags so the stats
-        # API shows which category dropped what. Domain, protocol and port rules
-        # come first: matching stops at the first hit, so anything caught here
-        # never pays for the DNS lookup that an ip rule triggers under
-        # IPOnDemand.
+        # Blocks split across named blackhole tags, so the stats API shows which
+        # category dropped what. Domain, protocol and port rules come first:
+        # matching stops at the first hit, so anything caught here never pays for
+        # the DNS lookup an ip rule triggers under IPOnDemand.
         block_rules: List[Dict[str, Any]] = [
             {
                 "outboundTag": "blocked",
@@ -716,33 +715,43 @@ class XrayConfig:
                 ],
             },
             {"outboundTag": "abuse-torrent", "protocol": ["bittorrent"]},
+            # Persian ad and tracker networks. Always on: this one is a feature
+            # users want, not abuse protection.
             {
-                "outboundTag": "abuse-malware",
-                "domain": [
-                    "ext:geosite_IR.dat:category-ads-all",
-                    "ext:geosite_IR.dat:malware",
-                    "ext:geosite_IR.dat:phishing",
-                    "ext:geosite_IR.dat:cryptominers",
-                ],
+                "outboundTag": "blocked-ads",
+                "domain": ["ext:geosite_IR.dat:category-ads-all"],
             },
         ]
 
         if self.anti_abuse:
-            block_rules.append(
-                {"outboundTag": "abuse-port", "network": "tcp", "port": ABUSE_PORTS}
-            )
+            block_rules += [
+                {
+                    "outboundTag": "abuse-malware",
+                    "domain": [
+                        "ext:geosite_IR.dat:malware",
+                        "ext:geosite_IR.dat:phishing",
+                        "ext:geosite_IR.dat:cryptominers",
+                    ],
+                },
+                {"outboundTag": "abuse-port", "network": "tcp", "port": ABUSE_PORTS},
+            ]
             log.info(
-                f"Anti-abuse on: blocking outbound TCP {ABUSE_PORTS}",
+                f"Anti-abuse on: malware/phishing/cryptominer lists, "
+                f"outbound TCP {ABUSE_PORTS}",
                 hypothesisId="CFG",
             )
 
-        block_rules += [
-            {"outboundTag": "blocked", "ip": ["geoip:private", "ext:geoip_IR.dat:ir"]},
-            {
-                "outboundTag": "abuse-malware",
-                "ip": ["ext:geoip_IR.dat:phishing", "ext:geoip_IR.dat:malware"],
-            },
-        ]
+        block_rules.append(
+            {"outboundTag": "blocked", "ip": ["geoip:private", "ext:geoip_IR.dat:ir"]}
+        )
+
+        if self.anti_abuse:
+            block_rules.append(
+                {
+                    "outboundTag": "abuse-malware",
+                    "ip": ["ext:geoip_IR.dat:phishing", "ext:geoip_IR.dat:malware"],
+                }
+            )
 
         self.xray_config = {
             "log": {
@@ -933,7 +942,13 @@ Endpoint = engage.cloudflareclient.com:2408
         # has no rule pointing at it, so the stats series don't come and go.
         self.xray_config["outbounds"] += [
             {"tag": tag, "protocol": "blackhole", "settings": {}}
-            for tag in ("blocked", "abuse-torrent", "abuse-malware", "abuse-port")
+            for tag in (
+                "blocked",
+                "blocked-ads",
+                "abuse-torrent",
+                "abuse-malware",
+                "abuse-port",
+            )
         ]
 
         if not active_inbounds:
