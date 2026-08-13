@@ -322,7 +322,7 @@
             mode: "0644"
             content: |
               /var/log/compassvpn/*.log {
-                  size 500M
+                  size 100M
                   rotate 2
                   compress
                   delaycompress
@@ -332,6 +332,18 @@
                   dateext
                   dateformat -%Y%m%d-%s
               }
+
+        # logrotate.timer runs daily, so a size rule only gets checked once a
+        # day and xray_access.log grew to 500 MB+ in between. The exporter
+        # re-reads the whole file from the start after every restart, so a big
+        # file also means minutes of stale metrics.
+        - name: Check the CompassVPN logs hourly, not just daily
+          ansible.builtin.copy:
+            dest: /etc/cron.hourly/compassvpn-logrotate
+            mode: "0755"
+            content: |
+              #!/bin/sh
+              exec /usr/sbin/logrotate /etc/logrotate.d/compassvpn
 
         - name: Enable and start logrotate.timer when available
           ansible.builtin.systemd_service:

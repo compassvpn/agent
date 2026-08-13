@@ -100,6 +100,7 @@ def _nginx_location_block(path: str, xray_port: int, template: str) -> str:
         return (
             f'    location = {path} {{\n'
             f'        if ($http_upgrade != "websocket") {{ return 404; }}\n'
+            f'        access_log off;\n'
             f'        proxy_pass http://xray:{xray_port};\n'
             f'        proxy_http_version 1.1;\n'
             f'        proxy_set_header Upgrade $http_upgrade;\n'
@@ -115,6 +116,7 @@ def _nginx_location_block(path: str, xray_port: int, template: str) -> str:
     if template == "xhttp":
         return (
             f'    location {path} {{\n'
+            f'        access_log off;\n'
             f'        proxy_pass http://xray:{xray_port};\n'
             f'        proxy_http_version 1.1;\n'
             f'        proxy_set_header Host $host;\n'
@@ -129,6 +131,7 @@ def _nginx_location_block(path: str, xray_port: int, template: str) -> str:
     if template == "xhttp_quic":
         return (
             f'    location {path} {{\n'
+            f'        access_log off;\n'
             f'        grpc_pass grpc://xray:{xray_port};\n'
             f'        grpc_set_header X-Forwarded-For $proxy_add_x_forwarded_for;\n'
             f'        grpc_read_timeout 315;\n'
