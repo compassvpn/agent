@@ -120,16 +120,20 @@
             state: present
 
         # Our own ports show up as docker-proxy, so filter those out or a re-run
-        # on a live box fails on itself.
+        # on a live box fails on itself. Match the socket cgroup too - the
+        # process name goes blank while docker restarts, the cgroup never does.
         - name: Fail early if a required port is held by a non-Docker process
           ansible.builtin.shell: |
             set -o pipefail
-            ss -tlpnH "sport = :{{ item }}" | grep -v docker-proxy || true
+            ss -tlpneH "sport = :{{ item }}" | grep -v -e docker-proxy -e 'cgroup:/system.slice/docker.service' || true
           args:
             executable: /bin/bash
           register: port_check
           changed_when: false
           failed_when: port_check.stdout | trim | length > 0
+          retries: 3
+          delay: 2
+          until: port_check.stdout | trim | length == 0
           loop: "{{ required_ports }}"
           loop_control:
             label: "{{ item }}"
