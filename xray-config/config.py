@@ -751,6 +751,9 @@ class XrayConfig:
             )
 
         block_rules += [
+            # Filtering resolvers (ControlD) answer 0.0.0.0 for blocked domains.
+            # Catch that before geoip:private so it doesn't log as block-private.
+            {"outboundTag": "block-dnsfilter", "ip": ["0.0.0.0/32"]},
             {"outboundTag": "block-private", "ip": ["geoip:private"]},
             {"outboundTag": "block-iran", "ip": ["ext:geoip_IR.dat:ir"]},
             {
@@ -945,6 +948,7 @@ Endpoint = engage.cloudflareclient.com:2408
         self.xray_config["outbounds"] += [
             {"tag": tag, "protocol": "blackhole", "settings": {}}
             for tag in (
+                "block-dnsfilter",
                 "block-private",
                 "block-iran",
                 "block-ads",
