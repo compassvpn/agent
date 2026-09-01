@@ -473,7 +473,7 @@
       block:
         - name: Build and (re)start all services
           ansible.builtin.command:
-            cmd: docker compose up -d --build --remove-orphans
+            cmd: docker compose up -d --build --force-recreate --remove-orphans
             chdir: "{{ project_dir }}"
           changed_when: true
 
