@@ -551,6 +551,15 @@ class XrayConfig:
                 ib for ib in all_inbounds if ib.get("name") in self.xray_inbounds
             ]
 
+            # Xray disables TCP keepalive on its listeners, so dead peers hold
+            # their sessions forever and memory grows without bound
+            # (XTLS/Xray-core#6684). 60/15 lets the kernel reap them in a few
+            # minutes. There is no global sockopt in xray, hence per inbound.
+            for ib in self.configured_inbounds:
+                ib["inbound"].setdefault("streamSettings", {}).setdefault(
+                    "sockopt", {}
+                ).update({"tcpKeepAliveIdle": 60, "tcpKeepAliveInterval": 15})
+
             # Expand replicas. Indices start at 1: replica 1 keeps the original
             # port (matched by static nginx location blocks), replicas 2+ get
             # ports from the 9000+ pool.

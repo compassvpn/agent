@@ -191,10 +191,6 @@
         "xhttpSettings": {
           "path": "/$nginx_path",
           "mode": "auto"
-        },
-        "sockopt": {
-          "tcpKeepAliveIdle": 60,
-          "tcpKeepAliveInterval": 15
         }
       },
       "sniffing": {
