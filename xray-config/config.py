@@ -551,6 +551,8 @@ class XrayConfig:
                 ib for ib in all_inbounds if ib.get("name") in self.xray_inbounds
             ]
 
+            # xray disables TCP keepalive by default; dead peers leak sessions
+            # (XTLS/Xray-core#6684)
             for ib in self.configured_inbounds:
                 ib["inbound"].setdefault("streamSettings", {}).setdefault(
                     "sockopt", {}
