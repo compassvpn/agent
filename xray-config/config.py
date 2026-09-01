@@ -552,11 +552,18 @@ class XrayConfig:
             ]
 
             # xray disables TCP keepalive by default; dead peers leak sessions
-            # (XTLS/Xray-core#6684)
+            # (XTLS/Xray-core#6684). tcpUserTimeout covers peers that die
+            # mid-send, where keepalive never fires. Both kill at ~3.5 min.
             for ib in self.configured_inbounds:
                 ib["inbound"].setdefault("streamSettings", {}).setdefault(
                     "sockopt", {}
-                ).update({"tcpKeepAliveIdle": 60, "tcpKeepAliveInterval": 15})
+                ).update(
+                    {
+                        "tcpKeepAliveIdle": 60,
+                        "tcpKeepAliveInterval": 15,
+                        "tcpUserTimeout": 195000,
+                    }
+                )
 
             # Expand replicas. Indices start at 1: replica 1 keeps the original
             # port (matched by static nginx location blocks), replicas 2+ get
