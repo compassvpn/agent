@@ -1,4 +1,4 @@
-# Vless-HU-TLS Handling. (Both direct and CDN)
+# hu tls (2053)
 server {
     listen 2053 ssl reuseport;
     listen [::]:2053 ssl reuseport;
@@ -8,12 +8,10 @@ server {
     ssl_certificate_key /root/.acme.sh/${DIRECT_SUBDOMAIN}_ecc/${DIRECT_SUBDOMAIN}.key;
     ssl_protocols TLSv1.3;
 
-    # Block sensitive paths
     if ($is_forbidden_path = 1) {
         return 403;
     }
 
-    # Forwards this path requests to xray (direct).
     location = /${NGINX_PATH}/tls/direct/1 {
         if ($http_upgrade != "websocket") {
             return 404;
@@ -27,13 +25,11 @@ server {
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header Host $host;
         proxy_redirect off;
-        # Match the xhttp locations; the 60s default cut every quiet tunnel
-        # each minute, hammering the upstream port with reconnects.
+        # The 60s default cut quiet tunnels every minute and caused reconnect storms.
         proxy_read_timeout 315;
         proxy_socket_keepalive on;
     }
 
-    # Forwards this path requests to xray (cdn).
     location = /${NGINX_PATH}/tls/cdn/1 {
         if ($http_upgrade != "websocket") {
             return 404;
@@ -53,7 +49,7 @@ server {
 
     include /etc/nginx/locations.d/2053/replicas.conf;
 
-    # Fallback all other requests to an external website.
+    # Everything else gets the decoy site.
     location / {
         sub_filter $proxy_host $host;
         sub_filter_once off;
@@ -78,14 +74,13 @@ server {
     }
 }
 
-# Vless-XHTTP-QUIC and Vless-XHTTP-TLS Handling. (Both direct and CDN)
-# Each inbound has its own path: CF only reaches the origin over TCP
-# (h2/http1.1), so quic-cdn and tls-cdn can't be told apart any other way.
+# xhttp quic + tls (8443)
+# Split by path: CF reaches the origin over TCP only, so quic cdn looks like tls here.
 server {
-    # Vless-xhttp-quic-direct; Client connects directly with alpn=h3.
+    # quic direct (h3)
     listen 8443 quic reuseport;
     listen [::]:8443 quic reuseport;
-    # Vless-xhttp-tls-*; Client connects with alpn=h2. Vless-xhttp-quic-cdn lands here too, via CF.
+    # tls (h2), plus quic cdn via CF
     listen 8443 ssl reuseport;
     listen [::]:8443 ssl reuseport;
     http2 on;
@@ -99,12 +94,10 @@ server {
     add_header Strict-Transport-Security "max-age=31536000; includeSubDomains; preload" always;
     add_header QUIC-Status $http3;
 
-    # Block sensitive paths
     if ($is_forbidden_path = 1) {
         return 403;
     }
 
-    # Forwards this path requests to xray (quic direct).
     location /${NGINX_PATH}/quic/direct/1 {
         access_log off;
         grpc_pass grpc://xray:8444;
@@ -115,7 +108,6 @@ server {
         client_max_body_size 0;
     }
 
-    # Forwards this path requests to xray (quic cdn).
     location /${NGINX_PATH}/quic/cdn/1 {
         access_log off;
         grpc_pass grpc://xray:8445;
@@ -126,7 +118,6 @@ server {
         client_max_body_size 0;
     }
 
-    # Forwards this path requests to xray (tls direct).
     location /${NGINX_PATH}/tls/direct/1 {
         access_log off;
         grpc_pass grpc://xray:8446;
@@ -137,7 +128,6 @@ server {
         client_max_body_size 0;
     }
 
-    # Forwards this path requests to xray (tls cdn).
     location /${NGINX_PATH}/tls/cdn/1 {
         access_log off;
         grpc_pass grpc://xray:8447;
@@ -150,7 +140,7 @@ server {
 
     include /etc/nginx/locations.d/8443/replicas.conf;
 
-    # Fallback all other requests to an external website.
+    # Everything else gets the decoy site.
     location / {
         sub_filter $proxy_host $host;
         sub_filter_once off;
