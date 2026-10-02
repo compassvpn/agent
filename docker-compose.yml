@@ -93,10 +93,10 @@ services:
     depends_on:
       - xray-config
     ports:
-      - "443:443/tcp"
+      - "443:443/tcp"      # xhttp reality
       - "443:443/udp"
-      - "2083:2083/tcp"    # vless-tcp-reality-direct, no nginx in front
-      - "2087:2087/tcp"    # vless-xhttp-reality-direct, no nginx in front
+      - "2083:2083/tcp"    # tcp reality
+      - "2087:2087/tcp"    # tcp tls
 
   # TLS front and camouflage: proxy paths go to xray, everything else to a
   # decoy site.
@@ -122,13 +122,13 @@ services:
     env_file:
       - env_file
     ports:
-      - "8080:8080/tcp"    # vless-hu-*, non-TLS httpupgrade
+      - "8080:8080/tcp"    # hu nontls
       - "8080:8080/udp"
-      - "8880:8880/tcp"
+      - "8880:8880/tcp"    # xhttp nontls
       - "8880:8880/udp"
-      - "2053:2053/tcp"
+      - "2053:2053/tcp"    # hu tls
       - "2053:2053/udp"
-      - "8443:8443/tcp"
+      - "8443:8443/tcp"    # xhttp quic + tls
       - "8443:8443/udp"
     environment:
       - TZ=UTC

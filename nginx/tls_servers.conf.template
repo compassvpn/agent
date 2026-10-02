@@ -1,4 +1,4 @@
-# Vless-HU-TLS Handling. (Both direct and CDN)
+# hu tls (2053)
 server {
     listen 2053 ssl reuseport;
     listen [::]:2053 ssl reuseport;
@@ -8,18 +8,16 @@ server {
     ssl_certificate_key /root/.acme.sh/${DIRECT_SUBDOMAIN}_ecc/${DIRECT_SUBDOMAIN}.key;
     ssl_protocols TLSv1.3;
 
-    # Block sensitive paths
     if ($is_forbidden_path = 1) {
         return 403;
     }
 
-    # Forwards this path requests to xray (direct).
-    location = /${NGINX_PATH}/1 {
+    location = /${NGINX_PATH}/tls/direct/1 {
         if ($http_upgrade != "websocket") {
             return 404;
         }
         access_log off;
-        proxy_pass http://xray:8002;
+        proxy_pass http://xray:2054;
         proxy_http_version 1.1;
         proxy_set_header Upgrade $http_upgrade;
         proxy_set_header Connection "upgrade";
@@ -27,19 +25,17 @@ server {
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header Host $host;
         proxy_redirect off;
-        # Match the xhttp locations; the 60s default cut every quiet tunnel
-        # each minute, hammering the upstream port with reconnects.
+        # The 60s default cut quiet tunnels every minute and caused reconnect storms.
         proxy_read_timeout 315;
         proxy_socket_keepalive on;
     }
 
-    # Forwards this path requests to xray (cdn).
-    location = /${NGINX_PATH}/cdn/1 {
+    location = /${NGINX_PATH}/tls/cdn/1 {
         if ($http_upgrade != "websocket") {
             return 404;
         }
         access_log off;
-        proxy_pass http://xray:8022;
+        proxy_pass http://xray:2055;
         proxy_http_version 1.1;
         proxy_set_header Upgrade $http_upgrade;
         proxy_set_header Connection "upgrade";
@@ -53,7 +49,7 @@ server {
 
     include /etc/nginx/locations.d/2053/replicas.conf;
 
-    # Fallback all other requests to an external website.
+    # Everything else gets the decoy site.
     location / {
         sub_filter $proxy_host $host;
         sub_filter_once off;
@@ -78,12 +74,13 @@ server {
     }
 }
 
-# Vless-XHTTP-QUIC Handling.
+# xhttp quic + tls (8443)
+# Split by path: CF reaches the origin over TCP only, so quic cdn looks like tls here.
 server {
-    # Vless-xhttp-quic-direct; Client will connect directly with alpn=h3,h2 (h2 for fallback when h3 is not available).
+    # quic direct (h3)
     listen 8443 quic reuseport;
     listen [::]:8443 quic reuseport;
-    # Vless-xhttp-quic-CDN; Client will connect to CF with alpn=h3,h2 (h2 for fallback when h3 is not available) and CF will connect to VM with h2,http1.1.
+    # tls (h2), plus quic cdn via CF
     listen 8443 ssl reuseport;
     listen [::]:8443 ssl reuseport;
     http2 on;
@@ -97,15 +94,13 @@ server {
     add_header Strict-Transport-Security "max-age=31536000; includeSubDomains; preload" always;
     add_header QUIC-Status $http3;
 
-    # Block sensitive paths
     if ($is_forbidden_path = 1) {
         return 403;
     }
 
-    # Forwards this path requests to xray (direct).
-    location /${NGINX_PATH}/1 {
+    location /${NGINX_PATH}/quic/direct/1 {
         access_log off;
-        grpc_pass grpc://xray:8003;
+        grpc_pass grpc://xray:8444;
         grpc_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         grpc_read_timeout 315;
         grpc_send_timeout 5m;
@@ -113,10 +108,29 @@ server {
         client_max_body_size 0;
     }
 
-    # Forwards this path requests to xray (cdn).
-    location /${NGINX_PATH}/cdn/1 {
+    location /${NGINX_PATH}/quic/cdn/1 {
         access_log off;
-        grpc_pass grpc://xray:8033;
+        grpc_pass grpc://xray:8445;
+        grpc_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        grpc_read_timeout 315;
+        grpc_send_timeout 5m;
+        client_body_timeout 5m;
+        client_max_body_size 0;
+    }
+
+    location /${NGINX_PATH}/tls/direct/1 {
+        access_log off;
+        grpc_pass grpc://xray:8446;
+        grpc_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        grpc_read_timeout 315;
+        grpc_send_timeout 5m;
+        client_body_timeout 5m;
+        client_max_body_size 0;
+    }
+
+    location /${NGINX_PATH}/tls/cdn/1 {
+        access_log off;
+        grpc_pass grpc://xray:8447;
         grpc_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         grpc_read_timeout 315;
         grpc_send_timeout 5m;
@@ -126,7 +140,7 @@ server {
 
     include /etc/nginx/locations.d/8443/replicas.conf;
 
-    # Fallback all other requests to an external website.
+    # Everything else gets the decoy site.
     location / {
         sub_filter $proxy_host $host;
         sub_filter_once off;
