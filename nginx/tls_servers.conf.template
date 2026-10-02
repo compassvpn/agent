@@ -19,7 +19,7 @@ server {
             return 404;
         }
         access_log off;
-        proxy_pass http://xray:8002;
+        proxy_pass http://xray:2054;
         proxy_http_version 1.1;
         proxy_set_header Upgrade $http_upgrade;
         proxy_set_header Connection "upgrade";
@@ -39,7 +39,7 @@ server {
             return 404;
         }
         access_log off;
-        proxy_pass http://xray:8022;
+        proxy_pass http://xray:2055;
         proxy_http_version 1.1;
         proxy_set_header Upgrade $http_upgrade;
         proxy_set_header Connection "upgrade";
@@ -107,7 +107,7 @@ server {
     # Forwards this path requests to xray (quic direct).
     location /${NGINX_PATH}/quic/direct/1 {
         access_log off;
-        grpc_pass grpc://xray:8003;
+        grpc_pass grpc://xray:8444;
         grpc_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         grpc_read_timeout 315;
         grpc_send_timeout 5m;
@@ -118,7 +118,7 @@ server {
     # Forwards this path requests to xray (quic cdn).
     location /${NGINX_PATH}/quic/cdn/1 {
         access_log off;
-        grpc_pass grpc://xray:8033;
+        grpc_pass grpc://xray:8445;
         grpc_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         grpc_read_timeout 315;
         grpc_send_timeout 5m;
@@ -129,7 +129,7 @@ server {
     # Forwards this path requests to xray (tls direct).
     location /${NGINX_PATH}/tls/direct/1 {
         access_log off;
-        grpc_pass grpc://xray:8006;
+        grpc_pass grpc://xray:8446;
         grpc_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         grpc_read_timeout 315;
         grpc_send_timeout 5m;
@@ -140,7 +140,7 @@ server {
     # Forwards this path requests to xray (tls cdn).
     location /${NGINX_PATH}/tls/cdn/1 {
         access_log off;
-        grpc_pass grpc://xray:8066;
+        grpc_pass grpc://xray:8447;
         grpc_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         grpc_read_timeout 315;
         grpc_send_timeout 5m;

@@ -6,7 +6,7 @@
     "inbound": {
       "tag": "vless-hu-direct",
       "listen": "0.0.0.0",
-      "port": 8005,
+      "port": 8081,
       "protocol": "vless",
       "settings": {
         "clients": [
@@ -39,7 +39,7 @@
     "inbound": {
       "tag": "vless-hu-cdn",
       "listen": "0.0.0.0",
-      "port": 8055,
+      "port": 8082,
       "protocol": "vless",
       "settings": {
         "clients": [
@@ -210,7 +210,7 @@
     "inbound": {
       "tag": "vless-hu-tls-direct",
       "listen": "0.0.0.0",
-      "port": 8002,
+      "port": 2054,
       "protocol": "vless",
       "settings": {
         "clients": [
@@ -243,7 +243,7 @@
     "inbound": {
       "tag": "vless-hu-tls-cdn",
       "listen": "0.0.0.0",
-      "port": 8022,
+      "port": 2055,
       "protocol": "vless",
       "settings": {
         "clients": [
@@ -276,7 +276,7 @@
       "inbound": {
         "tag": "vless-xhttp-quic-direct",
         "listen": "0.0.0.0",
-        "port": 8003,
+        "port": 8444,
         "protocol": "vless",
         "settings": {
           "clients": [
@@ -310,7 +310,7 @@
       "inbound": {
         "tag": "vless-xhttp-quic-cdn",
         "listen": "0.0.0.0",
-        "port": 8033,
+        "port": 8445,
         "protocol": "vless",
         "settings": {
           "clients": [
@@ -344,7 +344,7 @@
       "inbound": {
         "tag": "vless-xhttp-tls-direct",
         "listen": "0.0.0.0",
-        "port": 8006,
+        "port": 8446,
         "protocol": "vless",
         "settings": {
           "clients": [
@@ -378,7 +378,7 @@
       "inbound": {
         "tag": "vless-xhttp-tls-cdn",
         "listen": "0.0.0.0",
-        "port": 8066,
+        "port": 8447,
         "protocol": "vless",
         "settings": {
           "clients": [
@@ -412,7 +412,7 @@
       "inbound": {
         "tag": "vless-xhttp-direct",
         "listen": "0.0.0.0",
-        "port": 8004,
+        "port": 8881,
         "protocol": "vless",
         "settings": {
           "clients": [
@@ -446,7 +446,7 @@
       "inbound": {
         "tag": "vless-xhttp-cdn",
         "listen": "0.0.0.0",
-        "port": 8044,
+        "port": 8882,
         "protocol": "vless",
         "settings": {
           "clients": [
