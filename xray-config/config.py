@@ -331,16 +331,17 @@ class XrayConfig:
 
     def _setup_vless_encryption(self) -> None:
         """Derive the VLESS Encryption keypair deterministically from the
-        identifier (same idea as REALITY) so the non-TLS httpupgrade links
-        survive redeploys without persisting any key material.
+        identifier (same idea as REALITY) so the encrypted links survive
+        redeploys without persisting any key material.
 
         Authentication uses X25519 (the ephemeral exchange is ML-KEM-768 +
         X25519, so it stays post-quantum safe either way). The server keeps the
         private key in `decryption`; clients carry the matching public key
         ("Password") in `encryption`. Format per Xray-core:
-          decryption: mlkem768x25519plus.xorpub.600s.<padding>.<PrivateKey>
-          encryption: mlkem768x25519plus.xorpub.0rtt.<padding>.<Password>
-        xorpub masks the handshake public key (cheap obfs against DPI); the
+          decryption: mlkem768x25519plus.random.600s.<padding>.<PrivateKey>
+          encryption: mlkem768x25519plus.random.0rtt.<padding>.<Password>
+        random masks the handshake public key and every record header, so
+        nothing fixed is left for DPI or Cloudflare to match; the
         default padding hides the handshake length. Client uses 0rtt for fast,
         battery-friendly reconnects.
         """
@@ -371,14 +372,14 @@ class XrayConfig:
                 hypothesisId="CFG",
             )
             return
-        # xorpub obfuscation + the stock padding profile (shared by everyone,
+        # random obfuscation + the stock padding profile (shared by everyone,
         # so it blends into the largest crowd rather than standing out).
         _padding = "100-111-1111.75-0-111.50-0-3333"
         self.vless_enc_decryption = (
-            f"mlkem768x25519plus.xorpub.600s.{_padding}.{self.vless_enc_private_key}"
+            f"mlkem768x25519plus.random.600s.{_padding}.{self.vless_enc_private_key}"
         )
         self.vless_enc_encryption = (
-            f"mlkem768x25519plus.xorpub.0rtt.{_padding}.{self.vless_enc_password}"
+            f"mlkem768x25519plus.random.0rtt.{_padding}.{self.vless_enc_password}"
         )
 
     def initialize(self) -> None:
@@ -660,15 +661,13 @@ class XrayConfig:
                 )
 
         # Same idea for VLESS Encryption: an empty decryption string would fail
-        # `xray -test` and bring down the whole container.
+        # `xray -test` and bring down the whole container. Substitution already
+        # ran, so a failed keygen shows up as "" here, not the mlkem prefix.
         if not self.vless_enc_decryption:
             before = len(self.configured_inbounds)
             self.configured_inbounds = [
                 ib for ib in self.configured_inbounds
-                if not ib.get("inbound", {})
-                .get("settings", {})
-                .get("decryption", "")
-                .startswith("mlkem768x25519plus")
+                if ib.get("inbound", {}).get("settings", {}).get("decryption") != ""
             ]
             skipped = before - len(self.configured_inbounds)
             if skipped:
