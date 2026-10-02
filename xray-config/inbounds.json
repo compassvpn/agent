@@ -1,7 +1,7 @@
 [
   {
     "name": "vless-hu-direct",
-    "link": "vless://$config_id@$direct_subdomain:8080?type=httpupgrade&host=$direct_subdomain&path=%2F$nginx_path%2Fdirect&security=none&encryption=$vless_enc_encryption#vless-hu-direct",
+    "link": "vless://$config_id@$direct_subdomain:8080?type=httpupgrade&host=$direct_subdomain&path=%2F$nginx_path%2Fnontls%2Fdirect&security=none&encryption=$vless_enc_encryption#vless-hu-direct",
     "cloudflare": false,
     "inbound": {
       "tag": "vless-hu-direct",
@@ -19,7 +19,7 @@
       "streamSettings": {
         "network": "httpupgrade",
         "httpupgradeSettings": {
-          "path": "/$nginx_path/direct"
+          "path": "/$nginx_path/nontls/direct"
         }
       },
       "sniffing": {
@@ -34,7 +34,7 @@
   },
   {
     "name": "vless-hu-cdn",
-    "link": "vless://$config_id@$cf_clean_ip_domain:8080?type=httpupgrade&host=$subdomain&path=%2F$nginx_path%2Fcdn&security=none&encryption=$vless_enc_encryption#vless-hu-cdn",
+    "link": "vless://$config_id@$cf_clean_ip_domain:8080?type=httpupgrade&host=$subdomain&path=%2F$nginx_path%2Fnontls%2Fcdn&security=none&encryption=$vless_enc_encryption#vless-hu-cdn",
     "cloudflare": true,
     "inbound": {
       "tag": "vless-hu-cdn",
@@ -52,7 +52,7 @@
       "streamSettings": {
         "network": "httpupgrade",
         "httpupgradeSettings": {
-          "path": "/$nginx_path/cdn"
+          "path": "/$nginx_path/nontls/cdn"
         }
       },
       "sniffing": {
@@ -159,7 +159,7 @@
   },
   {
     "name": "vless-xhttp-reality-direct",
-    "link": "vless://$config_id@$direct_subdomain:443?type=xhttp&mode=auto&path=%2F$nginx_path%2Fdirect&security=reality&fp=chrome&pbk=$reality_public_key&sid=0443&sni=$reality_sni&spx=%2F#vless-xhttp-reality-direct",
+    "link": "vless://$config_id@$direct_subdomain:443?type=xhttp&mode=auto&path=%2F$nginx_path%2Freality%2Fdirect&security=reality&fp=chrome&pbk=$reality_public_key&sid=0443&sni=$reality_sni&spx=%2F#vless-xhttp-reality-direct",
     "cloudflare": false,
     "inbound": {
       "tag": "vless-xhttp-reality-direct",
@@ -189,7 +189,7 @@
           ]
         },
         "xhttpSettings": {
-          "path": "/$nginx_path/direct",
+          "path": "/$nginx_path/reality/direct",
           "mode": "auto"
         }
       },
@@ -205,7 +205,7 @@
   },
   {
     "name": "vless-hu-tls-direct",
-    "link": "vless://$config_id@$direct_subdomain:2053?type=httpupgrade&host=$direct_subdomain&path=%2F$nginx_path%2Fdirect&security=tls&fp=chrome&alpn=http%2F1.1&sni=$direct_subdomain#vless-hu-tls-direct",
+    "link": "vless://$config_id@$direct_subdomain:2053?type=httpupgrade&host=$direct_subdomain&path=%2F$nginx_path%2Ftls%2Fdirect&security=tls&fp=chrome&alpn=http%2F1.1&sni=$direct_subdomain#vless-hu-tls-direct",
     "cloudflare": false,
     "inbound": {
       "tag": "vless-hu-tls-direct",
@@ -223,7 +223,7 @@
       "streamSettings": {
         "network": "httpupgrade",
         "httpupgradeSettings": {
-          "path": "/$nginx_path/direct"
+          "path": "/$nginx_path/tls/direct"
         }
       },
       "sniffing": {
@@ -238,7 +238,7 @@
   },
   {
     "name": "vless-hu-tls-cdn",
-    "link": "vless://$config_id@$cf_clean_ip_domain:2053?type=httpupgrade&host=$subdomain&path=%2F$nginx_path%2Fcdn&security=tls&fp=chrome&alpn=http%2F1.1&sni=$subdomain#vless-hu-tls-cdn",
+    "link": "vless://$config_id@$cf_clean_ip_domain:2053?type=httpupgrade&host=$subdomain&path=%2F$nginx_path%2Ftls%2Fcdn&security=tls&fp=chrome&alpn=http%2F1.1&sni=$subdomain#vless-hu-tls-cdn",
     "cloudflare": true,
     "inbound": {
       "tag": "vless-hu-tls-cdn",
@@ -256,7 +256,7 @@
       "streamSettings": {
         "network": "httpupgrade",
         "httpupgradeSettings": {
-          "path": "/$nginx_path/cdn"
+          "path": "/$nginx_path/tls/cdn"
         }
       },
       "sniffing": {
@@ -271,7 +271,7 @@
   },
   {
       "name": "vless-xhttp-quic-direct",
-      "link": "vless://$config_id@$direct_subdomain:8443?type=xhttp&mode=auto&path=%2F$nginx_path%2Fdirect&security=tls&fp=chrome&alpn=h3&sni=$direct_subdomain#vless-xhttp-quic-direct",
+      "link": "vless://$config_id@$direct_subdomain:8443?type=xhttp&mode=auto&path=%2F$nginx_path%2Fquic%2Fdirect&security=tls&fp=chrome&alpn=h3&sni=$direct_subdomain#vless-xhttp-quic-direct",
       "cloudflare": false,
       "inbound": {
         "tag": "vless-xhttp-quic-direct",
@@ -289,7 +289,7 @@
         "streamSettings": {
           "network": "xhttp",
           "xhttpSettings": {
-            "path": "/$nginx_path/direct",
+            "path": "/$nginx_path/quic/direct",
             "mode": "auto"
           }
         },
@@ -305,7 +305,7 @@
     },
     {
       "name": "vless-xhttp-quic-cdn",
-      "link": "vless://$config_id@$cf_clean_ip_domain:8443?type=xhttp&mode=auto&path=%2F$nginx_path%2Fcdn&security=tls&fp=chrome&alpn=h3&sni=$subdomain#vless-xhttp-quic-cdn",
+      "link": "vless://$config_id@$cf_clean_ip_domain:8443?type=xhttp&mode=auto&path=%2F$nginx_path%2Fquic%2Fcdn&security=tls&fp=chrome&alpn=h3&sni=$subdomain#vless-xhttp-quic-cdn",
       "cloudflare": true,
       "inbound": {
         "tag": "vless-xhttp-quic-cdn",
@@ -323,7 +323,7 @@
         "streamSettings": {
           "network": "xhttp",
           "xhttpSettings": {
-            "path": "/$nginx_path/cdn",
+            "path": "/$nginx_path/quic/cdn",
             "mode": "auto"
           }
         },
@@ -407,7 +407,7 @@
     },
     {
       "name": "vless-xhttp-direct",
-      "link": "vless://$config_id@$direct_subdomain:8880?type=xhttp&mode=auto&host=$direct_subdomain&path=%2F$nginx_path%2Fdirect&security=none#vless-xhttp-direct",
+      "link": "vless://$config_id@$direct_subdomain:8880?type=xhttp&mode=auto&host=$direct_subdomain&path=%2F$nginx_path%2Fnontls%2Fdirect&security=none#vless-xhttp-direct",
       "cloudflare": false,
       "inbound": {
         "tag": "vless-xhttp-direct",
@@ -425,7 +425,7 @@
         "streamSettings": {
           "network": "xhttp",
           "xhttpSettings": {
-            "path": "/$nginx_path/direct",
+            "path": "/$nginx_path/nontls/direct",
             "host": "$direct_subdomain"
           }
         },
@@ -441,7 +441,7 @@
     },
     {
       "name": "vless-xhttp-cdn",
-      "link": "vless://$config_id@$cf_clean_ip_domain:8880?type=xhttp&mode=auto&host=$subdomain&path=%2F$nginx_path%2Fcdn&security=none#vless-xhttp-cdn",
+      "link": "vless://$config_id@$cf_clean_ip_domain:8880?type=xhttp&mode=auto&host=$subdomain&path=%2F$nginx_path%2Fnontls%2Fcdn&security=none#vless-xhttp-cdn",
       "cloudflare": true,
       "inbound": {
         "tag": "vless-xhttp-cdn",
@@ -459,7 +459,7 @@
         "streamSettings": {
           "network": "xhttp",
           "xhttpSettings": {
-            "path": "/$nginx_path/cdn",
+            "path": "/$nginx_path/nontls/cdn",
             "host": "$subdomain"
           }
         },
