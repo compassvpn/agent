@@ -14,7 +14,7 @@ server {
     }
 
     # Forwards this path requests to xray (direct).
-    location = /${NGINX_PATH}/1 {
+    location = /${NGINX_PATH}/direct/1 {
         if ($http_upgrade != "websocket") {
             return 404;
         }
@@ -78,12 +78,14 @@ server {
     }
 }
 
-# Vless-XHTTP-QUIC Handling.
+# Vless-XHTTP-QUIC and Vless-XHTTP-TLS Handling. (Both direct and CDN)
+# Each inbound has its own path: CF only reaches the origin over TCP
+# (h2/http1.1), so quic-cdn and tls-cdn can't be told apart any other way.
 server {
-    # Vless-xhttp-quic-direct; Client will connect directly with alpn=h3,h2 (h2 for fallback when h3 is not available).
+    # Vless-xhttp-quic-direct; Client connects directly with alpn=h3.
     listen 8443 quic reuseport;
     listen [::]:8443 quic reuseport;
-    # Vless-xhttp-quic-CDN; Client will connect to CF with alpn=h3,h2 (h2 for fallback when h3 is not available) and CF will connect to VM with h2,http1.1.
+    # Vless-xhttp-tls-*; Client connects with alpn=h2. Vless-xhttp-quic-cdn lands here too, via CF.
     listen 8443 ssl reuseport;
     listen [::]:8443 ssl reuseport;
     http2 on;
@@ -102,8 +104,8 @@ server {
         return 403;
     }
 
-    # Forwards this path requests to xray (direct).
-    location /${NGINX_PATH}/1 {
+    # Forwards this path requests to xray (quic direct).
+    location /${NGINX_PATH}/direct/1 {
         access_log off;
         grpc_pass grpc://xray:8003;
         grpc_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
@@ -113,10 +115,32 @@ server {
         client_max_body_size 0;
     }
 
-    # Forwards this path requests to xray (cdn).
+    # Forwards this path requests to xray (quic cdn).
     location /${NGINX_PATH}/cdn/1 {
         access_log off;
         grpc_pass grpc://xray:8033;
+        grpc_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        grpc_read_timeout 315;
+        grpc_send_timeout 5m;
+        client_body_timeout 5m;
+        client_max_body_size 0;
+    }
+
+    # Forwards this path requests to xray (tls direct).
+    location /${NGINX_PATH}/tls/direct/1 {
+        access_log off;
+        grpc_pass grpc://xray:8006;
+        grpc_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        grpc_read_timeout 315;
+        grpc_send_timeout 5m;
+        client_body_timeout 5m;
+        client_max_body_size 0;
+    }
+
+    # Forwards this path requests to xray (tls cdn).
+    location /${NGINX_PATH}/tls/cdn/1 {
+        access_log off;
+        grpc_pass grpc://xray:8066;
         grpc_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         grpc_read_timeout 315;
         grpc_send_timeout 5m;

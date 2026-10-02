@@ -51,8 +51,10 @@ _NGINX_PROXY_MAP: Dict[str, tuple] = {
     "vless-hu-tls-cdn":        (2053, "hu"),
     "vless-xhttp-direct":      (8880, "xhttp"),
     "vless-xhttp-cdn":         (8880, "xhttp"),
-    "vless-xhttp-quic-direct": (8443, "xhttp_quic"),
-    "vless-xhttp-quic-cdn":    (8443, "xhttp_quic"),
+    "vless-xhttp-quic-direct": (8443, "xhttp_grpc"),
+    "vless-xhttp-quic-cdn":    (8443, "xhttp_grpc"),
+    "vless-xhttp-tls-direct":  (8443, "xhttp_grpc"),
+    "vless-xhttp-tls-cdn":     (8443, "xhttp_grpc"),
 }
 
 _STREAM_PATH_KEY = {
@@ -128,7 +130,7 @@ def _nginx_location_block(path: str, xray_port: int, template: str) -> str:
             f'        proxy_read_timeout 315;\n'
             f'    }}'
         )
-    if template == "xhttp_quic":
+    if template == "xhttp_grpc":
         return (
             f'    location {path} {{\n'
             f'        access_log off;\n'
@@ -405,7 +407,7 @@ class XrayConfig:
         self.xray_inbounds = {}
         for entry in self.env_config.get(
             "XRAY_INBOUNDS",
-            "vless-hu-direct,vless-hu-cdn,vless-tcp-tls-direct,vless-tcp-reality-direct,vless-xhttp-reality-direct,vless-hu-tls-direct,vless-hu-tls-cdn,vless-xhttp-quic-direct,vless-xhttp-quic-cdn,vless-xhttp-direct,vless-xhttp-cdn",
+            "vless-hu-direct,vless-hu-cdn,vless-tcp-tls-direct,vless-tcp-reality-direct,vless-xhttp-reality-direct,vless-hu-tls-direct,vless-hu-tls-cdn,vless-xhttp-quic-direct,vless-xhttp-quic-cdn,vless-xhttp-tls-direct,vless-xhttp-tls-cdn,vless-xhttp-direct,vless-xhttp-cdn",
         ).split(","):
             name, _, count = entry.strip().partition(":")
             self.xray_inbounds[name] = int(count) if count.isdigit() else 1

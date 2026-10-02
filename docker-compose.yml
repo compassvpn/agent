@@ -93,10 +93,10 @@ services:
     depends_on:
       - xray-config
     ports:
-      - "443:443/tcp"
+      - "443:443/tcp"      # vless-xhttp-reality-direct, no nginx in front
       - "443:443/udp"
       - "2083:2083/tcp"    # vless-tcp-reality-direct, no nginx in front
-      - "2087:2087/tcp"    # vless-xhttp-reality-direct, no nginx in front
+      - "2087:2087/tcp"    # vless-tcp-tls-direct
 
   # TLS front and camouflage: proxy paths go to xray, everything else to a
   # decoy site.
