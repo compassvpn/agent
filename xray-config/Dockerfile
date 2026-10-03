@@ -1,4 +1,4 @@
-FROM teddysun/xray:26.3.27 AS xray-image
+FROM ghcr.io/xtls/xray-core:26.9.30 AS xray-image
 
 FROM python:3.14.8-alpine3.24
 
@@ -6,7 +6,7 @@ COPY requirements.txt requirements.txt
 
 RUN pip3 install --break-system-packages -r requirements.txt
 
-COPY --from=xray-image /usr/bin/xray /usr/bin/xray
+COPY --from=xray-image /usr/local/bin/xray /usr/bin/xray
 
 RUN apk add --no-cache --virtual .build-deps wget unzip && \
     apk add --no-cache curl openssl wireguard-tools-wg-quick && \

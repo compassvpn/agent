@@ -558,15 +558,21 @@ class XrayConfig:
             # (XTLS/Xray-core#6684). tcpUserTimeout covers peers that die
             # mid-send, where keepalive never fires. Both kill at ~3.5 min.
             for ib in self.configured_inbounds:
-                ib["inbound"].setdefault("streamSettings", {}).setdefault(
+                sockopt = ib["inbound"].setdefault("streamSettings", {}).setdefault(
                     "sockopt", {}
-                ).update(
+                )
+                sockopt.update(
                     {
                         "tcpKeepAliveIdle": 60,
                         "tcpKeepAliveInterval": 15,
                         "tcpUserTimeout": 195000,
                     }
                 )
+                # Since 26.6.22 xhttp/hu ignore X-Forwarded-For unless the
+                # header is trusted; without this every client behind nginx
+                # logs as the nginx IP and the exporter's GeoIP goes blind.
+                if ib.get("name") in _NGINX_PROXY_MAP:
+                    sockopt["trustedXForwardedFor"] = ["X-Forwarded-For"]
 
             # Expand replicas. Indices start at 1: replica 1 keeps the original
             # port (matched by static nginx location blocks), replicas 2+ get
@@ -877,7 +883,7 @@ class XrayConfig:
         direct_outbound = {
             "tag": "direct",
             "protocol": "freedom",
-            "settings": {"domainStrategy": "UseIPv4"},
+            "streamSettings": {"sockopt": {"domainStrategy": "UseIPv4"}},
         }
 
         if warp_active:
@@ -927,9 +933,12 @@ Endpoint = engage.cloudflareclient.com:2408
                 {
                     "tag": f"warp{i}",
                     "protocol": "freedom",
-                    "settings": {"domainStrategy": "UseIPv4"},
                     "streamSettings": {
-                        "sockopt": {"tcpFastOpen": True, "interface": f"wg{i}"}
+                        "sockopt": {
+                            "tcpFastOpen": True,
+                            "interface": f"wg{i}",
+                            "domainStrategy": "UseIPv4",
+                        }
                     },
                 }
                 for i in range(len(self.warps))
