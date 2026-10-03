@@ -70,6 +70,10 @@ def _make_replica(inbound_def: Dict[str, Any], replica_index: int, new_port: int
 
     replica["inbound"]["tag"] += f"-{replica_index}"
     replica["inbound"]["port"] = new_port
+    # xray only keeps per-user counters when the user has an email; use the
+    # tag so the user series carry the same label as the inbound series.
+    for user in replica["inbound"].get("settings", {}).get("users", []):
+        user["email"] = replica["inbound"]["tag"]
 
     stream = replica["inbound"].get("streamSettings", {})
     sk = _STREAM_PATH_KEY.get(stream.get("network", ""))
@@ -98,6 +102,9 @@ def _make_replica(inbound_def: Dict[str, Any], replica_index: int, new_port: int
 
 
 def _nginx_location_block(path: str, xray_port: int, template: str) -> str:
+    # xray trusts X-Forwarded-For from nginx, so never forward what the client
+    # sent: the peer address on direct paths, Cloudflare's header on cdn paths.
+    xff = "$http_cf_connecting_ip" if "/cdn/" in path else "$remote_addr"
     if template == "hu":
         return (
             f'    location = {path} {{\n'
@@ -108,7 +115,7 @@ def _nginx_location_block(path: str, xray_port: int, template: str) -> str:
             f'        proxy_set_header Upgrade $http_upgrade;\n'
             f'        proxy_set_header Connection "upgrade";\n'
             f'        proxy_set_header X-Real-IP $remote_addr;\n'
-            f'        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;\n'
+            f'        proxy_set_header X-Forwarded-For {xff};\n'
             f'        proxy_set_header Host $host;\n'
             f'        proxy_redirect off;\n'
             f'        proxy_read_timeout 315;\n'
@@ -123,7 +130,7 @@ def _nginx_location_block(path: str, xray_port: int, template: str) -> str:
             f'        proxy_http_version 1.1;\n'
             f'        proxy_set_header Host $host;\n'
             f'        proxy_set_header X-Real-IP $remote_addr;\n'
-            f'        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;\n'
+            f'        proxy_set_header X-Forwarded-For {xff};\n'
             f'        proxy_set_header Upgrade $http_upgrade;\n'
             f'        proxy_set_header Connection $connection_upgrade;\n'
             f'        proxy_buffering off;\n'
@@ -135,7 +142,7 @@ def _nginx_location_block(path: str, xray_port: int, template: str) -> str:
             f'    location {path} {{\n'
             f'        access_log off;\n'
             f'        grpc_pass grpc://xray:{xray_port};\n'
-            f'        grpc_set_header X-Forwarded-For $proxy_add_x_forwarded_for;\n'
+            f'        grpc_set_header X-Forwarded-For {xff};\n'
             f'        grpc_read_timeout 315;\n'
             f'        grpc_send_timeout 5m;\n'
             f'        client_body_timeout 5m;\n'
