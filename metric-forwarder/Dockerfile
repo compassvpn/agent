@@ -1,6 +1,6 @@
-FROM grafana/alloy:v1.17.0 AS alloy-image
+FROM grafana/alloy:v1.20.1 AS alloy-image
 
-FROM python:3.14.6-slim-bookworm
+FROM python:3.14.8-slim-bookworm
 
 COPY --from=alloy-image /bin/alloy /bin/alloy
 

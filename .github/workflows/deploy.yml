@@ -71,14 +71,14 @@ jobs:
         shell: bash
 
       - name: Setup SSH Agent if needed
-        uses: webfactory/ssh-agent@v0.9.1
+        uses: webfactory/ssh-agent@v0.10.0
         if: env.SSH_KEY_SECRET != '' # Run only if SSH_KEY secret is set
         with:
           ssh-private-key: ${{ secrets.SSH_KEY }}
 
       # Checkout code needed for the script file
       - name: Checkout code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v7
 
       # Main execution step, now runs once per server from the matrix
       - name: Connect, Update Repo, and Deploy

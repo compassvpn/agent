@@ -176,7 +176,7 @@ class XrayService:
             knife_cmd = [
                 "xray-knife",
                 "http",
-                "--thread",
+                "--threads",
                 "6",
                 "--mdelay",
                 "10000",
