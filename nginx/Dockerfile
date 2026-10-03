@@ -1,4 +1,4 @@
-FROM nginx:1.31.1-alpine-slim
+FROM nginx:1.31.6-alpine-slim
 
 RUN apk add --no-cache curl jq gettext
 

@@ -1,6 +1,6 @@
 FROM teddysun/xray:26.3.27 AS xray-image
 
-FROM python:3.14.6-alpine3.24
+FROM python:3.14.8-alpine3.24
 
 COPY requirements.txt requirements.txt
 
@@ -21,7 +21,7 @@ RUN apk add --no-cache --virtual .build-deps wget unzip && \
         echo "Unsupported architecture: $ARCH" >&2; \
         exit 1; \
     fi && \
-    wget -L -O knife.zip "https://github.com/lilendian0x00/xray-knife/releases/download/v10.1.1/Xray-knife-linux-${arch_name}.zip" && \
+    wget -L -O knife.zip "https://github.com/lilendian0x00/xray-knife/releases/download/v11.3.0/Xray-knife-linux-${arch_name}.zip" && \
     unzip knife.zip && \
     mv ./xray-knife /usr/bin/ && \
     rm -f knife.zip LICENSE README.md && \

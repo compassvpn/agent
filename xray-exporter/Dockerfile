@@ -1,4 +1,4 @@
-FROM alpine:3.22.4
+FROM alpine:3.24.2
 
 # keep ca-certificates around after dropping wget - the exporter needs it to
 # fetch the GeoIP dbs over https on startup

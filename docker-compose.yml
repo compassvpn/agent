@@ -187,7 +187,7 @@ services:
   # Host metrics. Needs the host netns, or the netdev collector reports the
   # container's own veth instead of the real NICs.
   node-exporter:
-    image: prom/node-exporter:v1.11.1
+    image: prom/node-exporter:v1.12.1
     restart: always
     mem_limit: 128m
     network_mode: host
