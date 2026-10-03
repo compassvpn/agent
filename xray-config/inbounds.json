@@ -304,7 +304,7 @@
     },
     {
       "name": "vless-xhttp-quic-cdn",
-      "link": "vless://$config_id@$cf_clean_ip_domain:8443?type=xhttp&mode=auto&path=%2F$nginx_path%2Fquic%2Fcdn&security=tls&fp=chrome&alpn=h3&sni=$subdomain&extra=%7B%22xPaddingObfsMode%22%3Atrue%2C%22xPaddingMethod%22%3A%22tokenish%22%2C%22xPaddingHeader%22%3A%22X-Client-State%22%2C%22xPaddingKey%22%3A%22_cs%22%2C%22sessionIDTable%22%3A%22Base62%22%2C%22sessionIDLength%22%3A%2216-32%22%7D&encryption=$vless_enc_encryption#vless-xhttp-quic-cdn",
+      "link": "vless://$config_id@$cf_clean_ip_domain:8443?type=xhttp&mode=auto&path=%2F$nginx_path%2Fquic%2Fcdn&security=tls&fp=chrome&alpn=h3&sni=$subdomain&extra=$xhttp_extra&encryption=$vless_enc_encryption#vless-xhttp-quic-cdn",
       "cloudflare": true,
       "inbound": {
         "tag": "vless-xhttp-quic-cdn",
@@ -376,7 +376,7 @@
     },
     {
       "name": "vless-xhttp-tls-cdn",
-      "link": "vless://$config_id@$cf_clean_ip_domain:8443?type=xhttp&mode=auto&path=%2F$nginx_path%2Ftls%2Fcdn&security=tls&fp=chrome&alpn=h2&sni=$subdomain&extra=%7B%22xPaddingObfsMode%22%3Atrue%2C%22xPaddingMethod%22%3A%22tokenish%22%2C%22xPaddingHeader%22%3A%22X-Client-State%22%2C%22xPaddingKey%22%3A%22_cs%22%2C%22sessionIDTable%22%3A%22Base62%22%2C%22sessionIDLength%22%3A%2216-32%22%7D&encryption=$vless_enc_encryption#vless-xhttp-tls-cdn",
+      "link": "vless://$config_id@$cf_clean_ip_domain:8443?type=xhttp&mode=auto&path=%2F$nginx_path%2Ftls%2Fcdn&security=tls&fp=chrome&alpn=h2&sni=$subdomain&extra=$xhttp_extra&encryption=$vless_enc_encryption#vless-xhttp-tls-cdn",
       "cloudflare": true,
       "inbound": {
         "tag": "vless-xhttp-tls-cdn",
@@ -414,7 +414,7 @@
     },
     {
       "name": "vless-xhttp-direct",
-      "link": "vless://$config_id@$direct_subdomain:8880?type=xhttp&mode=auto&host=$direct_subdomain&path=%2F$nginx_path%2Fnontls%2Fdirect&security=none&extra=%7B%22xPaddingObfsMode%22%3Atrue%2C%22xPaddingMethod%22%3A%22tokenish%22%2C%22xPaddingHeader%22%3A%22X-Client-State%22%2C%22xPaddingKey%22%3A%22_cs%22%2C%22sessionIDTable%22%3A%22Base62%22%2C%22sessionIDLength%22%3A%2216-32%22%7D&encryption=$vless_enc_encryption#vless-xhttp-direct",
+      "link": "vless://$config_id@$direct_subdomain:8880?type=xhttp&mode=auto&host=$direct_subdomain&path=%2F$nginx_path%2Fnontls%2Fdirect&security=none&extra=$xhttp_extra&encryption=$vless_enc_encryption#vless-xhttp-direct",
       "cloudflare": false,
       "inbound": {
         "tag": "vless-xhttp-direct",
@@ -452,7 +452,7 @@
     },
     {
       "name": "vless-xhttp-cdn",
-      "link": "vless://$config_id@$cf_clean_ip_domain:8880?type=xhttp&mode=auto&host=$subdomain&path=%2F$nginx_path%2Fnontls%2Fcdn&security=none&extra=%7B%22xPaddingObfsMode%22%3Atrue%2C%22xPaddingMethod%22%3A%22tokenish%22%2C%22xPaddingHeader%22%3A%22X-Client-State%22%2C%22xPaddingKey%22%3A%22_cs%22%2C%22sessionIDTable%22%3A%22Base62%22%2C%22sessionIDLength%22%3A%2216-32%22%7D&encryption=$vless_enc_encryption#vless-xhttp-cdn",
+      "link": "vless://$config_id@$cf_clean_ip_domain:8880?type=xhttp&mode=auto&host=$subdomain&path=%2F$nginx_path%2Fnontls%2Fcdn&security=none&extra=$xhttp_extra&encryption=$vless_enc_encryption#vless-xhttp-cdn",
       "cloudflare": true,
       "inbound": {
         "tag": "vless-xhttp-cdn",

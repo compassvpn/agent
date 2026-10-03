@@ -43,6 +43,23 @@ CONTROLD_DNS = "https+local://freedns.controld.com/no-ads-dating-drugs-gambling-
 # Inbounds that bind a port directly (no HTTP path) — replicas not supported
 _NO_REPLICA_SUPPORT = {"vless-tcp-tls-direct", "vless-tcp-reality-direct", "vless-xhttp-reality-direct"}
 
+# Client-side xhttp settings carried in the links' extra= param. The padding
+# keys must match the inbound's xhttpSettings or the server answers 400.
+_XHTTP_EXTRA = quote(
+    json.dumps(
+        {
+            "xPaddingObfsMode": True,
+            "xPaddingMethod": "tokenish",
+            "xPaddingHeader": "X-Client-State",
+            "xPaddingKey": "_cs",
+            "sessionIDTable": "Base62",
+            "sessionIDLength": "16-32",
+        },
+        separators=(",", ":"),
+    ),
+    safe="",
+)
+
 # Maps inbound name → (nginx server port, location template)
 _NGINX_PROXY_MAP: Dict[str, tuple] = {
     "vless-hu-direct":         (8080, "hu"),
@@ -555,6 +572,7 @@ class XrayConfig:
                     "reality_sni": self.reality_sni,
                     "vless_enc_decryption": self.vless_enc_decryption,
                     "vless_enc_encryption": self.vless_enc_encryption,
+                    "xhttp_extra": _XHTTP_EXTRA,
                 },
             )
             self.configured_inbounds = [
