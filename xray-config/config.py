@@ -43,6 +43,23 @@ CONTROLD_DNS = "https+local://freedns.controld.com/no-ads-dating-drugs-gambling-
 # Inbounds that bind a port directly (no HTTP path) — replicas not supported
 _NO_REPLICA_SUPPORT = {"vless-tcp-tls-direct", "vless-tcp-reality-direct", "vless-xhttp-reality-direct"}
 
+# Client-side xhttp settings carried in the links' extra= param. The padding
+# keys must match the inbound's xhttpSettings or the server answers 400.
+_XHTTP_EXTRA = quote(
+    json.dumps(
+        {
+            "xPaddingObfsMode": True,
+            "xPaddingMethod": "tokenish",
+            "xPaddingHeader": "X-Client-State",
+            "xPaddingKey": "_cs",
+            "sessionIDTable": "Base62",
+            "sessionIDLength": "16-32",
+        },
+        separators=(",", ":"),
+    ),
+    safe="",
+)
+
 # Maps inbound name → (nginx server port, location template)
 _NGINX_PROXY_MAP: Dict[str, tuple] = {
     "vless-hu-direct":         (8080, "hu"),
@@ -70,6 +87,10 @@ def _make_replica(inbound_def: Dict[str, Any], replica_index: int, new_port: int
 
     replica["inbound"]["tag"] += f"-{replica_index}"
     replica["inbound"]["port"] = new_port
+    # xray only keeps per-user counters when the user has an email; use the
+    # tag so the user series carry the same label as the inbound series.
+    for user in replica["inbound"].get("settings", {}).get("users", []):
+        user["email"] = replica["inbound"]["tag"]
 
     stream = replica["inbound"].get("streamSettings", {})
     sk = _STREAM_PATH_KEY.get(stream.get("network", ""))
@@ -98,6 +119,9 @@ def _make_replica(inbound_def: Dict[str, Any], replica_index: int, new_port: int
 
 
 def _nginx_location_block(path: str, xray_port: int, template: str) -> str:
+    # xray trusts X-Forwarded-For from nginx, so never forward what the client
+    # sent: the peer address on direct paths, Cloudflare's header on cdn paths.
+    xff = "$http_cf_connecting_ip" if "/cdn/" in path else "$remote_addr"
     if template == "hu":
         return (
             f'    location = {path} {{\n'
@@ -108,7 +132,7 @@ def _nginx_location_block(path: str, xray_port: int, template: str) -> str:
             f'        proxy_set_header Upgrade $http_upgrade;\n'
             f'        proxy_set_header Connection "upgrade";\n'
             f'        proxy_set_header X-Real-IP $remote_addr;\n'
-            f'        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;\n'
+            f'        proxy_set_header X-Forwarded-For {xff};\n'
             f'        proxy_set_header Host $host;\n'
             f'        proxy_redirect off;\n'
             f'        proxy_read_timeout 315;\n'
@@ -123,7 +147,7 @@ def _nginx_location_block(path: str, xray_port: int, template: str) -> str:
             f'        proxy_http_version 1.1;\n'
             f'        proxy_set_header Host $host;\n'
             f'        proxy_set_header X-Real-IP $remote_addr;\n'
-            f'        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;\n'
+            f'        proxy_set_header X-Forwarded-For {xff};\n'
             f'        proxy_set_header Upgrade $http_upgrade;\n'
             f'        proxy_set_header Connection $connection_upgrade;\n'
             f'        proxy_buffering off;\n'
@@ -135,7 +159,7 @@ def _nginx_location_block(path: str, xray_port: int, template: str) -> str:
             f'    location {path} {{\n'
             f'        access_log off;\n'
             f'        grpc_pass grpc://xray:{xray_port};\n'
-            f'        grpc_set_header X-Forwarded-For $proxy_add_x_forwarded_for;\n'
+            f'        grpc_set_header X-Forwarded-For {xff};\n'
             f'        grpc_read_timeout 315;\n'
             f'        grpc_send_timeout 5m;\n'
             f'        client_body_timeout 5m;\n'
@@ -548,6 +572,7 @@ class XrayConfig:
                     "reality_sni": self.reality_sni,
                     "vless_enc_decryption": self.vless_enc_decryption,
                     "vless_enc_encryption": self.vless_enc_encryption,
+                    "xhttp_extra": _XHTTP_EXTRA,
                 },
             )
             self.configured_inbounds = [
@@ -558,15 +583,21 @@ class XrayConfig:
             # (XTLS/Xray-core#6684). tcpUserTimeout covers peers that die
             # mid-send, where keepalive never fires. Both kill at ~3.5 min.
             for ib in self.configured_inbounds:
-                ib["inbound"].setdefault("streamSettings", {}).setdefault(
+                sockopt = ib["inbound"].setdefault("streamSettings", {}).setdefault(
                     "sockopt", {}
-                ).update(
+                )
+                sockopt.update(
                     {
                         "tcpKeepAliveIdle": 60,
                         "tcpKeepAliveInterval": 15,
                         "tcpUserTimeout": 195000,
                     }
                 )
+                # Since 26.6.22 xhttp/hu ignore X-Forwarded-For unless the
+                # header is trusted; without this every client behind nginx
+                # logs as the nginx IP and the exporter's GeoIP goes blind.
+                if ib.get("name") in _NGINX_PROXY_MAP:
+                    sockopt["trustedXForwardedFor"] = ["X-Forwarded-For"]
 
             # Expand replicas. Indices start at 1: replica 1 keeps the original
             # port (matched by static nginx location blocks), replicas 2+ get
@@ -692,8 +723,8 @@ class XrayConfig:
             {
                 "listen": "0.0.0.0",
                 "port": 54321,
-                "protocol": "dokodemo-door",
-                "settings": {"address": "127.0.0.1"},
+                "protocol": "tunnel",
+                "settings": {"rewriteAddress": "127.0.0.1"},
                 "tag": "doko",
             }
         ]
@@ -782,7 +813,6 @@ class XrayConfig:
             "dns": None,
             "inbounds": inbounds_list,
             "outbounds": [],
-            "transport": None,
             "policy": {
                 "levels": {"0": {"statsUserDownlink": True, "statsUserUplink": True}},
                 "system": {"statsInboundDownlink": True, "statsInboundUplink": True},
@@ -792,8 +822,18 @@ class XrayConfig:
                 "services": ["HandlerService", "LoggerService", "StatsService"],
             },
             "stats": {},
-            "reverse": None,
-            "fakeDns": None,
+            # The geo lists are baked at image build; this refreshes them in
+            # place (one file at a time, rolled back if the reload fails).
+            "geodata": {
+                "cron": "0 4 * * *",
+                "outbound": "direct",
+                "assets": [
+                    {"url": "https://github.com/Loyalsoldier/v2ray-rules-dat/releases/latest/download/geoip.dat", "file": "geoip.dat"},
+                    {"url": "https://github.com/Loyalsoldier/v2ray-rules-dat/releases/latest/download/geosite.dat", "file": "geosite.dat"},
+                    {"url": "https://github.com/chocolate4u/Iran-v2ray-rules/releases/latest/download/geoip.dat", "file": "geoip_IR.dat"},
+                    {"url": "https://github.com/chocolate4u/Iran-v2ray-rules/releases/latest/download/geosite.dat", "file": "geosite_IR.dat"},
+                ],
+            },
             "_cert_serial": self._cert_serial,
         }
 
@@ -806,7 +846,7 @@ class XrayConfig:
             elif custom_dns_config == "controld":
                 dns_server = CONTROLD_DNS
             elif custom_dns_config.startswith(
-                ("https+local://", "quic+local://", "tls+local://")
+                ("https+local://", "quic+local://")
             ):
                 dns_server = custom_dns_config
             else:
@@ -877,7 +917,7 @@ class XrayConfig:
         direct_outbound = {
             "tag": "direct",
             "protocol": "freedom",
-            "settings": {"domainStrategy": "UseIPv4"},
+            "streamSettings": {"sockopt": {"domainStrategy": "UseIPv4"}},
         }
 
         if warp_active:
@@ -927,9 +967,12 @@ Endpoint = engage.cloudflareclient.com:2408
                 {
                     "tag": f"warp{i}",
                     "protocol": "freedom",
-                    "settings": {"domainStrategy": "UseIPv4"},
                     "streamSettings": {
-                        "sockopt": {"tcpFastOpen": True, "interface": f"wg{i}"}
+                        "sockopt": {
+                            "tcpFastOpen": True,
+                            "interface": f"wg{i}",
+                            "domainStrategy": "UseIPv4",
+                        }
                     },
                 }
                 for i in range(len(self.warps))
