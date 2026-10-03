@@ -698,8 +698,8 @@ class XrayConfig:
             {
                 "listen": "0.0.0.0",
                 "port": 54321,
-                "protocol": "dokodemo-door",
-                "settings": {"address": "127.0.0.1"},
+                "protocol": "tunnel",
+                "settings": {"rewriteAddress": "127.0.0.1"},
                 "tag": "doko",
             }
         ]
@@ -788,7 +788,6 @@ class XrayConfig:
             "dns": None,
             "inbounds": inbounds_list,
             "outbounds": [],
-            "transport": None,
             "policy": {
                 "levels": {"0": {"statsUserDownlink": True, "statsUserUplink": True}},
                 "system": {"statsInboundDownlink": True, "statsInboundUplink": True},
@@ -798,8 +797,18 @@ class XrayConfig:
                 "services": ["HandlerService", "LoggerService", "StatsService"],
             },
             "stats": {},
-            "reverse": None,
-            "fakeDns": None,
+            # The geo lists are baked at image build; this refreshes them in
+            # place (one file at a time, rolled back if the reload fails).
+            "geodata": {
+                "cron": "0 4 * * *",
+                "outbound": "direct",
+                "assets": [
+                    {"url": "https://github.com/Loyalsoldier/v2ray-rules-dat/releases/latest/download/geoip.dat", "file": "geoip.dat"},
+                    {"url": "https://github.com/Loyalsoldier/v2ray-rules-dat/releases/latest/download/geosite.dat", "file": "geosite.dat"},
+                    {"url": "https://github.com/chocolate4u/Iran-v2ray-rules/releases/latest/download/geoip.dat", "file": "geoip_IR.dat"},
+                    {"url": "https://github.com/chocolate4u/Iran-v2ray-rules/releases/latest/download/geosite.dat", "file": "geosite_IR.dat"},
+                ],
+            },
             "_cert_serial": self._cert_serial,
         }
 
@@ -812,7 +821,7 @@ class XrayConfig:
             elif custom_dns_config == "controld":
                 dns_server = CONTROLD_DNS
             elif custom_dns_config.startswith(
-                ("https+local://", "quic+local://", "tls+local://")
+                ("https+local://", "quic+local://")
             ):
                 dns_server = custom_dns_config
             else:

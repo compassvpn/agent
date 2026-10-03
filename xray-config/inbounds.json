@@ -9,7 +9,7 @@
       "port": 8081,
       "protocol": "vless",
       "settings": {
-        "clients": [
+        "users": [
           {
             "id": "$config_id"
           }
@@ -42,7 +42,7 @@
       "port": 8082,
       "protocol": "vless",
       "settings": {
-        "clients": [
+        "users": [
           {
             "id": "$config_id"
           }
@@ -75,7 +75,7 @@
       "port": 2087,
       "protocol": "vless",
       "settings": {
-        "clients": [
+        "users": [
           {
             "flow": "xtls-rprx-vision",
             "id": "$config_id"
@@ -84,14 +84,13 @@
         "decryption": "none",
         "fallbacks": [
             {
-                "alpn": "h2",
                 "dest": "nginx:8001",
                 "xver": 1
             }
         ]
       },
       "streamSettings": {
-        "network": "tcp",
+        "network": "raw",
         "security": "tls",
         "tlsSettings": {
           "certificates": [
@@ -124,7 +123,7 @@
       "port": 2083,
       "protocol": "vless",
       "settings": {
-        "clients": [
+        "users": [
           {
             "flow": "xtls-rprx-vision",
             "id": "$config_id"
@@ -167,7 +166,7 @@
       "port": 443,
       "protocol": "vless",
       "settings": {
-        "clients": [
+        "users": [
           {
             "id": "$config_id"
           }
@@ -213,7 +212,7 @@
       "port": 2054,
       "protocol": "vless",
       "settings": {
-        "clients": [
+        "users": [
           {
             "id": "$config_id"
           }
@@ -246,7 +245,7 @@
       "port": 2055,
       "protocol": "vless",
       "settings": {
-        "clients": [
+        "users": [
           {
             "id": "$config_id"
           }
@@ -279,7 +278,7 @@
         "port": 8444,
         "protocol": "vless",
         "settings": {
-          "clients": [
+          "users": [
             {
               "id": "$config_id"
             }
@@ -313,7 +312,7 @@
         "port": 8445,
         "protocol": "vless",
         "settings": {
-          "clients": [
+          "users": [
             {
               "id": "$config_id"
             }
@@ -351,7 +350,7 @@
         "port": 8446,
         "protocol": "vless",
         "settings": {
-          "clients": [
+          "users": [
             {
               "id": "$config_id"
             }
@@ -385,7 +384,7 @@
         "port": 8447,
         "protocol": "vless",
         "settings": {
-          "clients": [
+          "users": [
             {
               "id": "$config_id"
             }
@@ -415,7 +414,7 @@
     },
     {
       "name": "vless-xhttp-direct",
-      "link": "vless://$config_id@$direct_subdomain:8880?type=xhttp&mode=auto&host=$direct_subdomain&path=%2F$nginx_path%2Fnontls%2Fdirect&security=none&encryption=$vless_enc_encryption#vless-xhttp-direct",
+      "link": "vless://$config_id@$direct_subdomain:8880?type=xhttp&mode=auto&host=$direct_subdomain&path=%2F$nginx_path%2Fnontls%2Fdirect&security=none&extra=%7B%22xPaddingObfsMode%22%3Atrue%2C%22xPaddingMethod%22%3A%22tokenish%22%2C%22xPaddingHeader%22%3A%22X-Client-State%22%2C%22xPaddingKey%22%3A%22_cs%22%2C%22sessionIDTable%22%3A%22Base62%22%2C%22sessionIDLength%22%3A%2216-32%22%7D&encryption=$vless_enc_encryption#vless-xhttp-direct",
       "cloudflare": false,
       "inbound": {
         "tag": "vless-xhttp-direct",
@@ -423,7 +422,7 @@
         "port": 8881,
         "protocol": "vless",
         "settings": {
-          "clients": [
+          "users": [
             {
               "id": "$config_id"
             }
@@ -434,7 +433,11 @@
           "network": "xhttp",
           "xhttpSettings": {
             "path": "/$nginx_path/nontls/direct",
-            "host": "$direct_subdomain"
+            "host": "$direct_subdomain",
+            "xPaddingObfsMode": true,
+            "xPaddingMethod": "tokenish",
+            "xPaddingHeader": "X-Client-State",
+            "xPaddingKey": "_cs"
           }
         },
         "sniffing": {
@@ -449,7 +452,7 @@
     },
     {
       "name": "vless-xhttp-cdn",
-      "link": "vless://$config_id@$cf_clean_ip_domain:8880?type=xhttp&mode=auto&host=$subdomain&path=%2F$nginx_path%2Fnontls%2Fcdn&security=none&encryption=$vless_enc_encryption#vless-xhttp-cdn",
+      "link": "vless://$config_id@$cf_clean_ip_domain:8880?type=xhttp&mode=auto&host=$subdomain&path=%2F$nginx_path%2Fnontls%2Fcdn&security=none&extra=%7B%22xPaddingObfsMode%22%3Atrue%2C%22xPaddingMethod%22%3A%22tokenish%22%2C%22xPaddingHeader%22%3A%22X-Client-State%22%2C%22xPaddingKey%22%3A%22_cs%22%2C%22sessionIDTable%22%3A%22Base62%22%2C%22sessionIDLength%22%3A%2216-32%22%7D&encryption=$vless_enc_encryption#vless-xhttp-cdn",
       "cloudflare": true,
       "inbound": {
         "tag": "vless-xhttp-cdn",
@@ -457,7 +460,7 @@
         "port": 8882,
         "protocol": "vless",
         "settings": {
-          "clients": [
+          "users": [
             {
               "id": "$config_id"
             }
@@ -468,7 +471,11 @@
           "network": "xhttp",
           "xhttpSettings": {
             "path": "/$nginx_path/nontls/cdn",
-            "host": "$subdomain"
+            "host": "$subdomain",
+            "xPaddingObfsMode": true,
+            "xPaddingMethod": "tokenish",
+            "xPaddingHeader": "X-Client-State",
+            "xPaddingKey": "_cs"
           }
         },
         "sniffing": {
