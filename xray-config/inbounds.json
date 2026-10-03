@@ -238,7 +238,7 @@
   },
   {
     "name": "vless-hu-tls-cdn",
-    "link": "vless://$config_id@$cf_clean_ip_domain:2053?type=httpupgrade&host=$subdomain&path=%2F$nginx_path%2Ftls%2Fcdn&security=tls&fp=chrome&alpn=http%2F1.1&sni=$subdomain#vless-hu-tls-cdn",
+    "link": "vless://$config_id@$cf_clean_ip_domain:2053?type=httpupgrade&host=$subdomain&path=%2F$nginx_path%2Ftls%2Fcdn&security=tls&fp=chrome&alpn=http%2F1.1&sni=$subdomain&encryption=$vless_enc_encryption#vless-hu-tls-cdn",
     "cloudflare": true,
     "inbound": {
       "tag": "vless-hu-tls-cdn",
@@ -251,7 +251,7 @@
             "id": "$config_id"
           }
         ],
-        "decryption": "none"
+        "decryption": "$vless_enc_decryption"
       },
       "streamSettings": {
         "network": "httpupgrade",
@@ -305,7 +305,7 @@
     },
     {
       "name": "vless-xhttp-quic-cdn",
-      "link": "vless://$config_id@$cf_clean_ip_domain:8443?type=xhttp&mode=auto&path=%2F$nginx_path%2Fquic%2Fcdn&security=tls&fp=chrome&alpn=h3&sni=$subdomain#vless-xhttp-quic-cdn",
+      "link": "vless://$config_id@$cf_clean_ip_domain:8443?type=xhttp&mode=auto&path=%2F$nginx_path%2Fquic%2Fcdn&security=tls&fp=chrome&alpn=h3&sni=$subdomain&extra=%7B%22xPaddingObfsMode%22%3Atrue%2C%22xPaddingMethod%22%3A%22tokenish%22%2C%22xPaddingHeader%22%3A%22X-Client-State%22%2C%22xPaddingKey%22%3A%22_cs%22%2C%22sessionIDTable%22%3A%22Base62%22%2C%22sessionIDLength%22%3A%2216-32%22%7D&encryption=$vless_enc_encryption#vless-xhttp-quic-cdn",
       "cloudflare": true,
       "inbound": {
         "tag": "vless-xhttp-quic-cdn",
@@ -318,13 +318,17 @@
               "id": "$config_id"
             }
           ],
-          "decryption": "none"
+          "decryption": "$vless_enc_decryption"
         },
         "streamSettings": {
           "network": "xhttp",
           "xhttpSettings": {
             "path": "/$nginx_path/quic/cdn",
-            "mode": "auto"
+            "mode": "auto",
+            "xPaddingObfsMode": true,
+            "xPaddingMethod": "tokenish",
+            "xPaddingHeader": "X-Client-State",
+            "xPaddingKey": "_cs"
           }
         },
         "sniffing": {
@@ -373,7 +377,7 @@
     },
     {
       "name": "vless-xhttp-tls-cdn",
-      "link": "vless://$config_id@$cf_clean_ip_domain:8443?type=xhttp&mode=auto&path=%2F$nginx_path%2Ftls%2Fcdn&security=tls&fp=chrome&alpn=h2&sni=$subdomain#vless-xhttp-tls-cdn",
+      "link": "vless://$config_id@$cf_clean_ip_domain:8443?type=xhttp&mode=auto&path=%2F$nginx_path%2Ftls%2Fcdn&security=tls&fp=chrome&alpn=h2&sni=$subdomain&extra=%7B%22xPaddingObfsMode%22%3Atrue%2C%22xPaddingMethod%22%3A%22tokenish%22%2C%22xPaddingHeader%22%3A%22X-Client-State%22%2C%22xPaddingKey%22%3A%22_cs%22%2C%22sessionIDTable%22%3A%22Base62%22%2C%22sessionIDLength%22%3A%2216-32%22%7D&encryption=$vless_enc_encryption#vless-xhttp-tls-cdn",
       "cloudflare": true,
       "inbound": {
         "tag": "vless-xhttp-tls-cdn",
@@ -386,13 +390,17 @@
               "id": "$config_id"
             }
           ],
-          "decryption": "none"
+          "decryption": "$vless_enc_decryption"
         },
         "streamSettings": {
           "network": "xhttp",
           "xhttpSettings": {
             "path": "/$nginx_path/tls/cdn",
-            "mode": "auto"
+            "mode": "auto",
+            "xPaddingObfsMode": true,
+            "xPaddingMethod": "tokenish",
+            "xPaddingHeader": "X-Client-State",
+            "xPaddingKey": "_cs"
           }
         },
         "sniffing": {
@@ -407,7 +415,7 @@
     },
     {
       "name": "vless-xhttp-direct",
-      "link": "vless://$config_id@$direct_subdomain:8880?type=xhttp&mode=auto&host=$direct_subdomain&path=%2F$nginx_path%2Fnontls%2Fdirect&security=none#vless-xhttp-direct",
+      "link": "vless://$config_id@$direct_subdomain:8880?type=xhttp&mode=auto&host=$direct_subdomain&path=%2F$nginx_path%2Fnontls%2Fdirect&security=none&encryption=$vless_enc_encryption#vless-xhttp-direct",
       "cloudflare": false,
       "inbound": {
         "tag": "vless-xhttp-direct",
@@ -420,7 +428,7 @@
               "id": "$config_id"
             }
           ],
-          "decryption": "none"
+          "decryption": "$vless_enc_decryption"
         },
         "streamSettings": {
           "network": "xhttp",
@@ -441,7 +449,7 @@
     },
     {
       "name": "vless-xhttp-cdn",
-      "link": "vless://$config_id@$cf_clean_ip_domain:8880?type=xhttp&mode=auto&host=$subdomain&path=%2F$nginx_path%2Fnontls%2Fcdn&security=none#vless-xhttp-cdn",
+      "link": "vless://$config_id@$cf_clean_ip_domain:8880?type=xhttp&mode=auto&host=$subdomain&path=%2F$nginx_path%2Fnontls%2Fcdn&security=none&encryption=$vless_enc_encryption#vless-xhttp-cdn",
       "cloudflare": true,
       "inbound": {
         "tag": "vless-xhttp-cdn",
@@ -454,7 +462,7 @@
               "id": "$config_id"
             }
           ],
-          "decryption": "none"
+          "decryption": "$vless_enc_decryption"
         },
         "streamSettings": {
           "network": "xhttp",
