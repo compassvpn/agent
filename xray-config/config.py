@@ -156,6 +156,7 @@ def _nginx_location_block(path: str, xray_port: int, template: str) -> str:
             f'        proxy_set_header Upgrade $http_upgrade;\n'
             f'        proxy_set_header Connection $connection_upgrade;\n'
             f'        proxy_buffering off;\n'
+            f'        proxy_request_buffering off;\n'
             f'        proxy_read_timeout 315;\n'
             f'    }}'
         )
