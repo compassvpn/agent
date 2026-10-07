@@ -49,12 +49,15 @@ _XHTTP_EXTRA = quote(
     json.dumps(
         {
             "xPaddingObfsMode": True,
-            "xPaddingPlacement": "header",
+            "xPaddingPlacement": "cookie",
             "xPaddingMethod": "tokenish",
-            "xPaddingHeader": "X-Client-State",
-            "xPaddingKey": "_cs",
+            "xPaddingKey": "pref",
+            "sessionIDPlacement": "cookie",
+            "sessionIDKey": "sid",
             "sessionIDTable": "Base62",
             "sessionIDLength": "16-32",
+            "seqPlacement": "cookie",
+            "seqKey": "rev",
         },
         separators=(",", ":"),
     ),

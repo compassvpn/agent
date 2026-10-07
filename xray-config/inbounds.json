@@ -325,10 +325,13 @@
             "path": "/$nginx_path/quic/cdn",
             "mode": "auto",
             "xPaddingObfsMode": true,
-            "xPaddingPlacement": "header",
+            "xPaddingPlacement": "cookie",
             "xPaddingMethod": "tokenish",
-            "xPaddingHeader": "X-Client-State",
-            "xPaddingKey": "_cs"
+            "xPaddingKey": "pref",
+            "sessionIDPlacement": "cookie",
+            "sessionIDKey": "sid",
+            "seqPlacement": "cookie",
+            "seqKey": "rev"
           }
         },
         "sniffing": {
@@ -398,10 +401,13 @@
             "path": "/$nginx_path/tls/cdn",
             "mode": "auto",
             "xPaddingObfsMode": true,
-            "xPaddingPlacement": "header",
+            "xPaddingPlacement": "cookie",
             "xPaddingMethod": "tokenish",
-            "xPaddingHeader": "X-Client-State",
-            "xPaddingKey": "_cs"
+            "xPaddingKey": "pref",
+            "sessionIDPlacement": "cookie",
+            "sessionIDKey": "sid",
+            "seqPlacement": "cookie",
+            "seqKey": "rev"
           }
         },
         "sniffing": {
@@ -437,10 +443,13 @@
             "path": "/$nginx_path/nontls/direct",
             "host": "$direct_subdomain",
             "xPaddingObfsMode": true,
-            "xPaddingPlacement": "header",
+            "xPaddingPlacement": "cookie",
             "xPaddingMethod": "tokenish",
-            "xPaddingHeader": "X-Client-State",
-            "xPaddingKey": "_cs"
+            "xPaddingKey": "pref",
+            "sessionIDPlacement": "cookie",
+            "sessionIDKey": "sid",
+            "seqPlacement": "cookie",
+            "seqKey": "rev"
           }
         },
         "sniffing": {
@@ -476,10 +485,13 @@
             "path": "/$nginx_path/nontls/cdn",
             "host": "$subdomain",
             "xPaddingObfsMode": true,
-            "xPaddingPlacement": "header",
+            "xPaddingPlacement": "cookie",
             "xPaddingMethod": "tokenish",
-            "xPaddingHeader": "X-Client-State",
-            "xPaddingKey": "_cs"
+            "xPaddingKey": "pref",
+            "sessionIDPlacement": "cookie",
+            "sessionIDKey": "sid",
+            "seqPlacement": "cookie",
+            "seqKey": "rev"
           }
         },
         "sniffing": {
