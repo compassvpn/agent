@@ -158,6 +158,8 @@ def _nginx_location_block(path: str, xray_port: int, template: str) -> str:
             f'        proxy_buffering off;\n'
             f'        proxy_request_buffering off;\n'
             f'        proxy_read_timeout 315;\n'
+            f'        proxy_hide_header Access-Control-Allow-Origin;\n'
+            f'        proxy_hide_header Access-Control-Allow-Credentials;\n'
             f'    }}'
         )
     if template == "xhttp_grpc":
@@ -170,6 +172,8 @@ def _nginx_location_block(path: str, xray_port: int, template: str) -> str:
             f'        grpc_send_timeout 5m;\n'
             f'        client_body_timeout 5m;\n'
             f'        client_max_body_size 0;\n'
+            f'        grpc_hide_header Access-Control-Allow-Origin;\n'
+            f'        grpc_hide_header Access-Control-Allow-Credentials;\n'
             f'    }}'
         )
     return ""
