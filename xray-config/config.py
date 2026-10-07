@@ -148,15 +148,16 @@ def _nginx_location_block(path: str, xray_port: int, template: str) -> str:
         return (
             f'    location {path} {{\n'
             f'        access_log off;\n'
-            f'        proxy_pass http://xray:{xray_port};\n'
+            f'        proxy_pass http://xray_{xray_port};\n'
             f'        proxy_http_version 1.1;\n'
             f'        proxy_set_header Host $host;\n'
             f'        proxy_set_header X-Real-IP $remote_addr;\n'
             f'        proxy_set_header X-Forwarded-For {xff};\n'
-            f'        proxy_set_header Upgrade $http_upgrade;\n'
-            f'        proxy_set_header Connection $connection_upgrade;\n'
+            f'        proxy_set_header Connection "";\n'
             f'        proxy_buffering off;\n'
             f'        proxy_request_buffering off;\n'
+            f'        proxy_buffer_size 16k;\n'
+            f'        proxy_busy_buffers_size 16k;\n'
             f'        proxy_read_timeout 315;\n'
             f'        proxy_hide_header Access-Control-Allow-Origin;\n'
             f'        proxy_hide_header Access-Control-Allow-Credentials;\n'
@@ -166,12 +167,13 @@ def _nginx_location_block(path: str, xray_port: int, template: str) -> str:
         return (
             f'    location {path} {{\n'
             f'        access_log off;\n'
-            f'        grpc_pass grpc://xray:{xray_port};\n'
+            f'        grpc_pass grpc://xray_{xray_port};\n'
             f'        grpc_set_header X-Forwarded-For {xff};\n'
             f'        grpc_read_timeout 315;\n'
             f'        grpc_send_timeout 5m;\n'
             f'        client_body_timeout 5m;\n'
             f'        client_max_body_size 0;\n'
+            f'        grpc_buffer_size 16k;\n'
             f'        grpc_hide_header Access-Control-Allow-Origin;\n'
             f'        grpc_hide_header Access-Control-Allow-Credentials;\n'
             f'    }}'
@@ -230,7 +232,7 @@ class XrayConfig:
         self.warps_ready: bool = False
         self.wg_configs: Dict[str, str] = {}
         self.warps: List[Dict[str, Any]] = []
-        self.nginx_locations: Dict[int, str] = {}
+        self.nginx_locations: Dict[Any, str] = {}
         self.initialized: bool = False
 
     def _get_domain(self) -> None:
@@ -718,15 +720,22 @@ class XrayConfig:
                 )
 
         # Build nginx location blocks for replicas that survived TLS filtering
-        nginx_locs: Dict[int, List[str]] = {}
+        nginx_locs: Dict[Any, List[str]] = {}
         for ib in self.configured_inbounds:
             if ib.get("_replica_index", 0) > 1 and "_nginx_port" in ib:
                 stream = ib["inbound"].get("streamSettings", {})
                 sk = _STREAM_PATH_KEY.get(stream.get("network", ""))
                 path = stream.get(sk, {}).get("path", "") if sk else ""
                 if path:
-                    block = _nginx_location_block(path, ib["inbound"]["port"], ib["_nginx_template"])
+                    port = ib["inbound"]["port"]
+                    block = _nginx_location_block(path, port, ib["_nginx_template"])
                     nginx_locs.setdefault(ib["_nginx_port"], []).append(block)
+                    # xhttp blocks proxy to a named upstream, which nginx.conf
+                    # includes at http level.
+                    if ib["_nginx_template"] in ("xhttp", "xhttp_grpc"):
+                        nginx_locs.setdefault("upstreams", []).append(
+                            f"upstream xray_{port} {{\n    server xray:{port};\n    keepalive 128;\n}}"
+                        )
         self.nginx_locations = {port: "\n\n".join(blocks) for port, blocks in nginx_locs.items()}
 
         inbounds_list = [
