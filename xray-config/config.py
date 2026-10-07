@@ -43,17 +43,22 @@ CONTROLD_DNS = "https+local://freedns.controld.com/no-ads-dating-drugs-gambling-
 # Inbounds that bind a port directly (no HTTP path) — replicas not supported
 _NO_REPLICA_SUPPORT = {"vless-tcp-tls-direct", "vless-tcp-reality-direct", "vless-xhttp-reality-direct"}
 
-# Client-side xhttp settings carried in the links' extra= param. The padding
-# keys must match the inbound's xhttpSettings or the server answers 400.
+# Client-side xhttp settings carried in the links' extra= param. The padding,
+# session and seq keys must match the inbound's xhttpSettings or the server
+# rejects the request. 32 hex is a common session cookie shape.
 _XHTTP_EXTRA = quote(
     json.dumps(
         {
             "xPaddingObfsMode": True,
+            "xPaddingPlacement": "cookie",
             "xPaddingMethod": "tokenish",
-            "xPaddingHeader": "X-Client-State",
-            "xPaddingKey": "_cs",
-            "sessionIDTable": "Base62",
-            "sessionIDLength": "16-32",
+            "xPaddingKey": "pref",
+            "sessionIDPlacement": "cookie",
+            "sessionIDKey": "sid",
+            "sessionIDTable": "hex",
+            "sessionIDLength": "32-32",
+            "seqPlacement": "cookie",
+            "seqKey": "rev",
         },
         separators=(",", ":"),
     ),
@@ -151,7 +156,10 @@ def _nginx_location_block(path: str, xray_port: int, template: str) -> str:
             f'        proxy_set_header Upgrade $http_upgrade;\n'
             f'        proxy_set_header Connection $connection_upgrade;\n'
             f'        proxy_buffering off;\n'
+            f'        proxy_request_buffering off;\n'
             f'        proxy_read_timeout 315;\n'
+            f'        proxy_hide_header Access-Control-Allow-Origin;\n'
+            f'        proxy_hide_header Access-Control-Allow-Credentials;\n'
             f'    }}'
         )
     if template == "xhttp_grpc":
@@ -164,6 +172,8 @@ def _nginx_location_block(path: str, xray_port: int, template: str) -> str:
             f'        grpc_send_timeout 5m;\n'
             f'        client_body_timeout 5m;\n'
             f'        client_max_body_size 0;\n'
+            f'        grpc_hide_header Access-Control-Allow-Origin;\n'
+            f'        grpc_hide_header Access-Control-Allow-Credentials;\n'
             f'    }}'
         )
     return ""
