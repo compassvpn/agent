@@ -49,6 +49,7 @@ _XHTTP_EXTRA = quote(
     json.dumps(
         {
             "xPaddingObfsMode": True,
+            "xPaddingPlacement": "header",
             "xPaddingMethod": "tokenish",
             "xPaddingHeader": "X-Client-State",
             "xPaddingKey": "_cs",
