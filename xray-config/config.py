@@ -43,8 +43,9 @@ CONTROLD_DNS = "https+local://freedns.controld.com/no-ads-dating-drugs-gambling-
 # Inbounds that bind a port directly (no HTTP path) — replicas not supported
 _NO_REPLICA_SUPPORT = {"vless-tcp-tls-direct", "vless-tcp-reality-direct", "vless-xhttp-reality-direct"}
 
-# Client-side xhttp settings carried in the links' extra= param. The padding
-# keys must match the inbound's xhttpSettings or the server answers 400.
+# Client-side xhttp settings carried in the links' extra= param. The padding,
+# session and seq keys must match the inbound's xhttpSettings or the server
+# rejects the request. 32 hex is a common session cookie shape.
 _XHTTP_EXTRA = quote(
     json.dumps(
         {
@@ -54,8 +55,8 @@ _XHTTP_EXTRA = quote(
             "xPaddingKey": "pref",
             "sessionIDPlacement": "cookie",
             "sessionIDKey": "sid",
-            "sessionIDTable": "Base62",
-            "sessionIDLength": "16-32",
+            "sessionIDTable": "hex",
+            "sessionIDLength": "32-32",
             "seqPlacement": "cookie",
             "seqKey": "rev",
         },
