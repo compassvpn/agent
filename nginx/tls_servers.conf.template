@@ -100,12 +100,13 @@ server {
 
     location /${NGINX_PATH}/quic/direct/1 {
         access_log off;
-        grpc_pass grpc://xray:8444;
+        grpc_pass grpc://xray_8444;
         grpc_set_header X-Forwarded-For $remote_addr;
         grpc_read_timeout 315;
         grpc_send_timeout 5m;
         client_body_timeout 5m;
         client_max_body_size 0;
+        grpc_buffer_size 16k;
         # xray's CORS headers; only its browser dialer needs them
         grpc_hide_header Access-Control-Allow-Origin;
         grpc_hide_header Access-Control-Allow-Credentials;
@@ -113,36 +114,39 @@ server {
 
     location /${NGINX_PATH}/quic/cdn/1 {
         access_log off;
-        grpc_pass grpc://xray:8445;
+        grpc_pass grpc://xray_8445;
         grpc_set_header X-Forwarded-For $http_cf_connecting_ip;
         grpc_read_timeout 315;
         grpc_send_timeout 5m;
         client_body_timeout 5m;
         client_max_body_size 0;
+        grpc_buffer_size 16k;
         grpc_hide_header Access-Control-Allow-Origin;
         grpc_hide_header Access-Control-Allow-Credentials;
     }
 
     location /${NGINX_PATH}/tls/direct/1 {
         access_log off;
-        grpc_pass grpc://xray:8446;
+        grpc_pass grpc://xray_8446;
         grpc_set_header X-Forwarded-For $remote_addr;
         grpc_read_timeout 315;
         grpc_send_timeout 5m;
         client_body_timeout 5m;
         client_max_body_size 0;
+        grpc_buffer_size 16k;
         grpc_hide_header Access-Control-Allow-Origin;
         grpc_hide_header Access-Control-Allow-Credentials;
     }
 
     location /${NGINX_PATH}/tls/cdn/1 {
         access_log off;
-        grpc_pass grpc://xray:8447;
+        grpc_pass grpc://xray_8447;
         grpc_set_header X-Forwarded-For $http_cf_connecting_ip;
         grpc_read_timeout 315;
         grpc_send_timeout 5m;
         client_body_timeout 5m;
         client_max_body_size 0;
+        grpc_buffer_size 16k;
         grpc_hide_header Access-Control-Allow-Origin;
         grpc_hide_header Access-Control-Allow-Credentials;
     }

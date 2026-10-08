@@ -64,12 +64,15 @@ else
     : > "$TLS_CONF"
 fi
 
-# Write per-port replica location blocks.
+# Write per-port replica location blocks and their xhttp upstreams.
 for port in 2053 8880 8443 8080; do
     mkdir -p "/etc/nginx/locations.d/$port"
     printf '%s\n' "$(printf '%s' "$LOCATIONS" | jq -r ".\"$port\" // empty")" \
         > "/etc/nginx/locations.d/$port/replicas.conf"
 done
+mkdir -p /etc/nginx/upstreams.d
+printf '%s\n' "$(printf '%s' "$LOCATIONS" | jq -r '.upstreams // empty')" \
+    > /etc/nginx/upstreams.d/replicas.conf
 
 # Watch for cert renewal flag and reload nginx when it changes.
 CERT_FLAG="/var/log/compassvpn/.cert_renewed"
