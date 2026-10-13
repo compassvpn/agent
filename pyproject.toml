@@ -9,7 +9,7 @@
 name = "compassvpn-agent"
 version = "0"   # unused placeholder; nothing reads it (this isn't a published package)
 description = "Pinned Ansible toolchain for provisioning the CompassVPN agent host."
-requires-python = ">=3.12"
+requires-python = ">=3.12,<3.15"  # ansible-core 2.21 breaks on 3.15 (dataclasses._is_type is gone); drop with ansible 15
 dependencies = [
     "ansible==14.4.0",
 ]
