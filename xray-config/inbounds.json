@@ -503,5 +503,35 @@
           ]
         }
       }
+    },
+    {
+      "name": "vless-raw-http-direct",
+      "link": "vless://$config_id@$direct_subdomain:8000?type=tcp&headerType=none&security=none&encryption=$vless_enc_encryption_raw_http&fm=$raw_http_fm#vless-raw-http-direct",
+      "cloudflare": false,
+      "inbound": {
+        "tag": "vless-raw-http-direct",
+        "listen": "0.0.0.0",
+        "port": 8000,
+        "protocol": "vless",
+        "settings": {
+          "users": [
+            {
+              "id": "$config_id"
+            }
+          ],
+          "decryption": "$vless_enc_decryption_raw_http"
+        },
+        "streamSettings": {
+          "network": "raw"
+        },
+        "sniffing": {
+          "enabled": true,
+          "destOverride": [
+            "http",
+            "tls",
+            "quic"
+          ]
+        }
+      }
     }
 ]

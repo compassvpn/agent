@@ -97,6 +97,7 @@ services:
       - "443:443/udp"
       - "2083:2083/tcp"    # tcp reality
       - "2087:2087/tcp"    # tcp tls
+      - "8000:8000/tcp"    # raw http
 
   # TLS front and camouflage: proxy paths go to xray, everything else to a
   # decoy site.

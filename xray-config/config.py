@@ -7,7 +7,7 @@ import re
 import string
 from pathlib import Path
 from datetime import datetime, timezone
-from time import sleep
+from time import gmtime, sleep, strftime
 from typing import Any, Dict, List, Optional
 from urllib.parse import unquote, quote, urlparse
 import requests
@@ -41,7 +41,7 @@ CF_DNS = "https+local://security.cloudflare-dns.com/dns-query"
 CONTROLD_DNS = "https+local://freedns.controld.com/no-ads-dating-drugs-gambling-malware-typo"
 
 # Inbounds that bind a port directly (no HTTP path) — replicas not supported
-_NO_REPLICA_SUPPORT = {"vless-tcp-tls-direct", "vless-tcp-reality-direct", "vless-xhttp-reality-direct"}
+_NO_REPLICA_SUPPORT = {"vless-tcp-tls-direct", "vless-tcp-reality-direct", "vless-xhttp-reality-direct", "vless-raw-http-direct"}
 
 # Client-side xhttp settings carried in the links' extra= param. The padding,
 # session and seq keys must match the inbound's xhttpSettings or the server
@@ -80,6 +80,72 @@ def _xhttp_split_extra(address: str, host: str, path: str) -> str:
         json.dumps({**_XHTTP_CLIENT, "downloadSettings": download}, separators=(",", ":")),
         safe="",
     )
+
+
+# VLESS Encryption padding for vless-raw-http-direct. A real video GET sends
+# nothing after its headers, so the client pads as little as xray allows; the
+# server sends one bigger burst with no gap, like the start of a download.
+_RAW_HTTP_DEC_PADDING = "100-1200-3000.0-0-0.80-1000-8000"
+_RAW_HTTP_ENC_PADDING = "100-35-300"
+
+
+def _raw_http_finalmask(seed: str, host: str) -> Dict[str, Any]:
+    """header-custom mask for vless-raw-http-direct: the client sends a GET for
+    an MP4 and the server answers 206 with the first bytes of the file.
+
+    Path, file and sizes come from the seed, so every node looks different but
+    keeps its values across redeploys. Both sides must hold the same mask, so
+    the link carries it in fm=. The server checks the client's bytes exactly,
+    item by item; a probe that differs gets the nginx-style 404.
+    """
+    h = hashlib.sha256(f"{seed}:raw-http".encode()).digest()
+    pick = lambda i, xs: xs[h[i] % len(xs)]
+    num = lambda i, lo, hi: lo + int.from_bytes(h[i:i + 4], "big") % (hi - lo)
+
+    folder = pick(0, ["media", "videos", "static", "assets", "content", "files", "dl", "vod"])
+    name = pick(2, ["clip", "intro", "promo", "lecture", "trailer", "episode", "teaser", "recap"])
+    res = pick(3, ["480", "720", "1080"])
+    size = num(4, 60_000_000, 400_000_000)
+    mtime = num(8, 1735689600, 1759190400)  # 2025-01-01 .. 2025-09-30
+    moov = num(12, 150_000, 900_000)
+    lang = pick(16, ["en-US,en;q=0.9", "en-GB,en;q=0.9", "en-US,en;q=0.9,fa;q=0.8", "de-DE,de;q=0.9,en;q=0.8"])
+    s = lambda p: {"type": "str", "packet": p}
+
+    # Small first items, so a probe that differs early gets the 404 after a
+    # few bytes instead of waiting for a long item to fill.
+    clients = [
+        s("GET "), s(f"/{folder}/"), s(f"{h[1:2].hex()}/{name}-{res}.mp4?t=17"),
+        # 11 random digits per connection, so the query reads as a ms
+        # timestamp; the server skips rand bytes instead of checking them.
+        {"rand": 11, "randRange": "48-57"},
+        s(" HTTP/1.1\r\n"), s(f"Host: {host}\r\n"), s("Connection: keep-alive\r\n"),
+        s("User-Agent: Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/155.0.0.0 Safari/537.36\r\n"),
+        s("Accept-Encoding: identity;q=1, *;q=0\r\n"), s("Accept: */*\r\n"),
+        s(f"Referer: http://{host}/\r\n"), s(f"Accept-Language: {lang}\r\n"),
+        s("Range: bytes=0-\r\n"), s("\r\n"),
+    ]
+    # nginx's ETag is hex mtime-size. After the headers come an MP4 ftyp box
+    # and an mdat box header, so the encrypted VLESS bytes read as video data.
+    servers = [
+        s(
+            f"HTTP/1.1 206 Partial Content\r\nServer: nginx\r\nContent-Type: video/mp4\r\n"
+            f"Content-Length: {size}\r\nLast-Modified: {strftime('%a, %d %b %Y %H:%M:%S GMT', gmtime(mtime))}\r\n"
+            f"Connection: keep-alive\r\nETag: \"{mtime:x}-{size:x}\"\r\n"
+            f"Content-Range: bytes 0-{size - 1}/{size}\r\n\r\n"
+        ),
+        {"type": "hex", "packet": "000000206674797069736f6d0000020069736f6d69736f32617663316d703431"},
+        {"type": "hex", "packet": f"{size - 32 - moov:08x}6d646174"},
+    ]
+    body = (
+        "<html>\r\n<head><title>404 Not Found</title></head>\r\n<body>\r\n"
+        "<center><h1>404 Not Found</h1></center>\r\n<hr><center>nginx</center>\r\n</body>\r\n</html>\r\n"
+    )
+    errors = [s(
+        f"HTTP/1.1 404 Not Found\r\nServer: nginx\r\nContent-Type: text/html\r\n"
+        f"Content-Length: {len(body)}\r\nConnection: close\r\n\r\n{body}"
+    )]
+    return {"tcp": [{"type": "header-custom", "settings": {"clients": [clients], "servers": [servers], "errors": [errors]}}]}
+
 
 # Maps inbound name → (nginx server port, location template)
 _NGINX_PROXY_MAP: Dict[str, tuple] = {
@@ -243,6 +309,8 @@ class XrayConfig:
         self.vless_enc_password: str = ""
         self.vless_enc_decryption: str = ""
         self.vless_enc_encryption: str = ""
+        self.vless_enc_decryption_raw_http: str = ""
+        self.vless_enc_encryption_raw_http: str = ""
         self.configured_inbounds: List[Dict[str, Any]] = []
         self.xray_config: Dict[str, Any] = {}
         self.warps_ready: bool = False
@@ -433,6 +501,12 @@ class XrayConfig:
         self.vless_enc_encryption = (
             f"mlkem768x25519plus.random.0rtt.{_padding}.{self.vless_enc_password}"
         )
+        self.vless_enc_decryption_raw_http = (
+            f"mlkem768x25519plus.random.600s.{_RAW_HTTP_DEC_PADDING}.{self.vless_enc_private_key}"
+        )
+        self.vless_enc_encryption_raw_http = (
+            f"mlkem768x25519plus.random.0rtt.{_RAW_HTTP_ENC_PADDING}.{self.vless_enc_password}"
+        )
 
     def initialize(self) -> None:
         """Perform all initialization logic. Only executes once."""
@@ -583,6 +657,7 @@ class XrayConfig:
                 return string.Template(data).safe_substitute(mapping)
             return data
 
+        raw_http_mask = _raw_http_finalmask(self.config_id, self.direct_subdomain or "")
         with open(INBOUNDS_JSON, encoding="utf-8") as f:
             raw_inbounds = json.load(f)
             all_inbounds = substitute_vars(
@@ -601,6 +676,9 @@ class XrayConfig:
                     "vless_enc_decryption": self.vless_enc_decryption,
                     "vless_enc_encryption": self.vless_enc_encryption,
                     "xhttp_extra": _XHTTP_EXTRA,
+                    "vless_enc_decryption_raw_http": self.vless_enc_decryption_raw_http,
+                    "vless_enc_encryption_raw_http": self.vless_enc_encryption_raw_http,
+                    "raw_http_fm": quote(json.dumps(raw_http_mask, separators=(",", ":")), safe=""),
                 },
             )
             self.configured_inbounds = [
@@ -626,6 +704,9 @@ class XrayConfig:
                 # logs as the nginx IP and the exporter's GeoIP goes blind.
                 if ib.get("name") in _NGINX_PROXY_MAP:
                     sockopt["trustedXForwardedFor"] = ["X-Forwarded-For"]
+                # Set here, not in inbounds.json: the mask is built per node.
+                if ib.get("name") == "vless-raw-http-direct":
+                    ib["inbound"]["streamSettings"]["finalmask"] = raw_http_mask
 
             # Expand replicas. Indices start at 1: replica 1 keeps the original
             # port (matched by static nginx location blocks), replicas 2+ get
