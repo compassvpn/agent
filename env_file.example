@@ -32,6 +32,8 @@ WARP_DOMAINS=
 
 # Inbounds to enable (comma-separated). Append :<count> for replicas via path-based
 # routing, e.g. vless-hu-tls-cdn:3
+# Opt-in, not listed below: vless-raw-http-direct (port 8000, raw TCP that looks
+# like a plain HTTP video download).
 XRAY_INBOUNDS=vless-hu-direct,vless-hu-cdn,vless-tcp-tls-direct,vless-tcp-reality-direct,vless-xhttp-reality-direct,vless-hu-tls-direct,vless-hu-tls-cdn,vless-xhttp-quic-direct,vless-xhttp-quic-cdn,vless-xhttp-tls-direct,vless-xhttp-tls-cdn,vless-xhttp-direct,vless-xhttp-cdn
 
 # TLS certificate authority: "letsencrypt" or "zerossl".
