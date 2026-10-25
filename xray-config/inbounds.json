@@ -464,7 +464,7 @@
     },
     {
       "name": "vless-xhttp-cdn",
-      "link": "vless://$config_id@$cf_clean_ip_domain:8880?type=xhttp&mode=auto&host=$subdomain&path=%2F$nginx_path%2Fnontls%2Fcdn&security=none&extra=$xhttp_extra&encryption=$vless_enc_encryption#vless-xhttp-cdn",
+      "link": "vless://$config_id@$cf_clean_ip_domain:8880?type=xhttp&mode=auto&host=$subdomain&path=%2F$nginx_path%2Fnontls%2Fcdn&security=none&extra=$xhttp_split_extra&encryption=$vless_enc_encryption#vless-xhttp-cdn",
       "cloudflare": true,
       "inbound": {
         "tag": "vless-xhttp-cdn",

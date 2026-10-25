@@ -9,7 +9,7 @@ from pathlib import Path
 from datetime import datetime, timezone
 from time import sleep
 from typing import Any, Dict, List, Optional
-from urllib.parse import unquote, quote
+from urllib.parse import unquote, quote, urlparse
 import requests
 
 from shared_lib.network import get_public_ip
@@ -61,15 +61,16 @@ _XHTTP_CLIENT = {
 _XHTTP_EXTRA = quote(json.dumps(_XHTTP_CLIENT, separators=(",", ":")), safe="")
 
 # Second nginx port for the xhttp nontls download leg. nginx sends both ports
-# to the same xray listener, which is what pairs upload and download.
-_XHTTP_DOWNLOAD_PORT = 28100
+# to the same xray listener, which is what pairs upload and download. It's a
+# port Cloudflare proxies, so the cdn link can use it too.
+_XHTTP_DOWNLOAD_PORT = 2052
 
 
-def _xhttp_split_extra(host: str, path: str) -> str:
+def _xhttp_split_extra(address: str, host: str, path: str) -> str:
     # The download leg builds its requests only from the inner xhttpSettings,
     # so the padding, session and seq keys go in again, plus path and host.
     download = {
-        "address": host,
+        "address": address,
         "port": _XHTTP_DOWNLOAD_PORT,
         "network": "xhttp",
         "security": "none",
@@ -651,7 +652,9 @@ class XrayConfig:
                         xs = replica["inbound"]["streamSettings"]["xhttpSettings"]
                         replica["link"] = replica["link"].replace(
                             "$xhttp_split_extra",
-                            _xhttp_split_extra(xs.get("host", ""), xs["path"]),
+                            _xhttp_split_extra(
+                                urlparse(replica["link"]).hostname, xs.get("host", ""), xs["path"]
+                            ),
                         )
                     replica["_replica_index"] = idx
                     if name in _NGINX_PROXY_MAP:
