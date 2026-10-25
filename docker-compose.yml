@@ -126,6 +126,7 @@ services:
       - "8080:8080/udp"
       - "8880:8880/tcp"    # xhttp nontls
       - "8880:8880/udp"
+      - "28100:28100/tcp"  # xhttp nontls download leg
       - "2053:2053/tcp"    # hu tls
       - "2053:2053/udp"
       - "8443:8443/tcp"    # xhttp quic + tls
