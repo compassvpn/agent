@@ -2,10 +2,6 @@
 
 rm -f /run/*.pid
 
-# monit configs (xray + wg watchdogs) are rendered into this directory at
-# runtime; nothing creates it at build time anymore.
-mkdir -p /etc/monit.d
-
 # Normalize DEBUG (accept True/TRUE/"true") to match the Python services.
 DEBUG=$(printf '%s' "${DEBUG:-false}" | tr -d "\"'" | tr '[:upper:]' '[:lower:]')
 if [ "$DEBUG" = "true" ]; then
@@ -117,8 +113,6 @@ if ! xray -test -config /etc/xray/config.json; then
     cat /etc/xray/config.json
     exit 1
 fi
-
-cp /xray_monit /etc/monit.d/xray
 
 # Start Xray immediately so xray-config can test it
 /start_xray.sh
