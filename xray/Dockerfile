@@ -2,7 +2,7 @@ FROM alpine:3.24.2
 
 # Official build straight from XTLS CI; the image itself is distroless, so
 # only the binary comes from it.
-COPY --from=ghcr.io/xtls/xray-core:26.9.30 /usr/local/bin/xray /usr/bin/xray
+COPY --from=ghcr.io/xtls/xray-core:26.10.21 /usr/local/bin/xray /usr/bin/xray
 
 RUN apk update && apk add tzdata ca-certificates curl wget wireguard-tools-wg-quick monit jq net-tools && mkdir -p /etc/xray /usr/share/xray
 
