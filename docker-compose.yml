@@ -2,8 +2,8 @@
 x-public-tuned: &public-tuned
   ulimits:
     nofile:
-      # xray's httpupgrade listener wedges for good if accept() ever hits
-      # EMFILE, so keep the ceiling far out of reach.
+      # Every client connection holds an fd in xray and nginx; keep the
+      # ceiling far out of reach.
       soft: 1048576
       hard: 1048576
   # These are per-netns: a container starts from kernel defaults, so the same

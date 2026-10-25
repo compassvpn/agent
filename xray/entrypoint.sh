@@ -2,10 +2,6 @@
 
 rm -f /run/*.pid
 
-# monit configs (xray + wg watchdogs) are rendered into this directory at
-# runtime; nothing creates it at build time anymore.
-mkdir -p /etc/monit.d
-
 # Normalize DEBUG (accept True/TRUE/"true") to match the Python services.
 DEBUG=$(printf '%s' "${DEBUG:-false}" | tr -d "\"'" | tr '[:upper:]' '[:lower:]')
 if [ "$DEBUG" = "true" ]; then
@@ -118,33 +114,6 @@ if ! xray -test -config /etc/xray/config.json; then
     exit 1
 fi
 
-# A process check alone misses a wedged listener: an inbound can stop
-# accepting connections while the xray process stays alive (seen in the wild
-# with httpupgrade under junk traffic - the port's accept queue fills up and
-# every new connection times out). Render the monit config from the template
-# plus one TCP connect check per inbound port. A deaf port gets healed
-# surgically (/heal_inbound.sh re-adds just that inbound via the xray API, no
-# impact on other inbounds); only the API inbound itself (doko) falls back to
-# a full restart since a dead API can't heal anything. "for 3 cycles" (~90s)
-# tolerates brief load spikes; "repeat" re-fires the heal so it can escalate.
-generate_monit_config() {
-    {
-        cat /xray_monit
-        jq -r '
-            [ .inbounds[]
-              | select((.listen // "0.0.0.0") == "0.0.0.0" or .listen == "127.0.0.1")
-              | select((.port | type) == "number") ]
-            | unique_by(.port) | .[]
-            | if .tag == "doko" then
-                "  if failed host 127.0.0.1 port \(.port) type tcp with timeout 10 seconds for 3 cycles then restart"
-              else
-                "  if failed host 127.0.0.1 port \(.port) type tcp with timeout 10 seconds for 3 cycles then exec \"/heal_inbound.sh \(.port)\" repeat every 3 cycles"
-              end
-        ' /etc/xray/config.json
-    } > /etc/monit.d/xray
-}
-generate_monit_config
-
 # Start Xray immediately so xray-config can test it
 /start_xray.sh
 
@@ -158,12 +127,6 @@ config_watcher() {
         new=$(curl -sf "$XRAY_CONFIG_URL") || continue
         if [ "$new" != "$(cat /etc/xray/config.json)" ]; then
             printf '%s' "$new" > /etc/xray/config.json
-            # The inbound ports may have changed (e.g. a TLS inbound dropped
-            # after a cert problem); re-render the port checks and make monit
-            # re-read them, otherwise a check on a removed port would restart
-            # xray forever.
-            generate_monit_config
-            kill -HUP "$(pidof monit)" 2>/dev/null
             if [ -f /run/xray.pid ]; then
                 kill -HUP "$(cat /run/xray.pid)" && echo "xray config updated and reloaded"
             fi
