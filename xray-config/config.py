@@ -9,7 +9,7 @@ from pathlib import Path
 from datetime import datetime, timezone
 from time import sleep
 from typing import Any, Dict, List, Optional
-from urllib.parse import unquote, quote
+from urllib.parse import unquote, quote, urlparse
 import requests
 
 from shared_lib.network import get_public_ip
@@ -46,24 +46,40 @@ _NO_REPLICA_SUPPORT = {"vless-tcp-tls-direct", "vless-tcp-reality-direct", "vles
 # Client-side xhttp settings carried in the links' extra= param. The padding,
 # session and seq keys must match the inbound's xhttpSettings or the server
 # rejects the request. 32 hex is a common session cookie shape.
-_XHTTP_EXTRA = quote(
-    json.dumps(
-        {
-            "xPaddingObfsMode": True,
-            "xPaddingPlacement": "cookie",
-            "xPaddingMethod": "tokenish",
-            "xPaddingKey": "pref",
-            "sessionIDPlacement": "cookie",
-            "sessionIDKey": "sid",
-            "sessionIDTable": "hex",
-            "sessionIDLength": "32-32",
-            "seqPlacement": "cookie",
-            "seqKey": "rev",
-        },
-        separators=(",", ":"),
-    ),
-    safe="",
-)
+_XHTTP_CLIENT = {
+    "xPaddingObfsMode": True,
+    "xPaddingPlacement": "cookie",
+    "xPaddingMethod": "tokenish",
+    "xPaddingKey": "pref",
+    "sessionIDPlacement": "cookie",
+    "sessionIDKey": "sid",
+    "sessionIDTable": "hex",
+    "sessionIDLength": "32-32",
+    "seqPlacement": "cookie",
+    "seqKey": "rev",
+}
+_XHTTP_EXTRA = quote(json.dumps(_XHTTP_CLIENT, separators=(",", ":")), safe="")
+
+# Second nginx port for the xhttp nontls download leg. nginx sends both ports
+# to the same xray listener, which is what pairs upload and download. It's a
+# port Cloudflare proxies, so the cdn link can use it too.
+_XHTTP_DOWNLOAD_PORT = 2052
+
+
+def _xhttp_split_extra(address: str, host: str, path: str) -> str:
+    # The download leg builds its requests only from the inner xhttpSettings,
+    # so the padding, session and seq keys go in again, plus path and host.
+    download = {
+        "address": address,
+        "port": _XHTTP_DOWNLOAD_PORT,
+        "network": "xhttp",
+        "security": "none",
+        "xhttpSettings": {**_XHTTP_CLIENT, "path": path, "host": host},
+    }
+    return quote(
+        json.dumps({**_XHTTP_CLIENT, "downloadSettings": download}, separators=(",", ":")),
+        safe="",
+    )
 
 # Maps inbound name → (nginx server port, location template)
 _NGINX_PROXY_MAP: Dict[str, tuple] = {
@@ -630,6 +646,16 @@ class XrayConfig:
                     if idx > 1:
                         _replica_port += 1
                     replica = _make_replica(ib, idx, port)
+                    # Left unsubstituted above so the download path gets this
+                    # replica's suffix; _make_replica can't reach it inside extra.
+                    if "$xhttp_split_extra" in replica.get("link", ""):
+                        xs = replica["inbound"]["streamSettings"]["xhttpSettings"]
+                        replica["link"] = replica["link"].replace(
+                            "$xhttp_split_extra",
+                            _xhttp_split_extra(
+                                urlparse(replica["link"]).hostname, xs.get("host", ""), xs["path"]
+                            ),
+                        )
                     replica["_replica_index"] = idx
                     if name in _NGINX_PROXY_MAP:
                         replica["_nginx_port"], replica["_nginx_template"] = _NGINX_PROXY_MAP[name]
