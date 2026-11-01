@@ -9,7 +9,7 @@ XRAY_CONFIG_BASE="http://xray-config:5000"
 mkdir -p /etc/nginx/conf.d
 
 . /shared_lib/common.sh
-debug log "Debug logging on"
+debug "Debug logging on"
 
 NGINX_LOG_LEVEL="warn"
 if [ "$DEBUG" = "true" ]; then
@@ -61,9 +61,9 @@ LAST_FLAG_TIME=$(cat "$CERT_FLAG" 2>/dev/null || true)
             if [ "$CURRENT_TIME" != "$LAST_FLAG_TIME" ]; then
                 LAST_FLAG_TIME="$CURRENT_TIME"
                 if out=$(nginx -s reload 2>&1); then
-                    log info cert "TLS cert renewed, nginx reloaded"
+                    log info "TLS cert renewed, nginx reloaded"
                 else
-                    log error nginx "Couldn't reload nginx"
+                    log error "Couldn't reload nginx"
                     echo "$out"
                 fi
             fi
@@ -72,5 +72,5 @@ LAST_FLAG_TIME=$(cat "$CERT_FLAG" 2>/dev/null || true)
     done
 ) &
 
-log info nginx "Starting nginx" "tls=$TLS"
+log info "Starting nginx" "tls=$TLS"
 nginx -g "daemon off;"

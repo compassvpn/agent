@@ -3,7 +3,7 @@
 rm -f /run/*.pid
 
 . /shared_lib/common.sh
-debug log "Debug logging on"
+debug "Debug logging on"
 
 # Mock resolvconf to prevent wg-quick from breaking Docker DNS
 # This keeps the container's /etc/resolv.conf (Docker DNS) intact.
@@ -23,7 +23,7 @@ if [ "$XRAY_OUTBOUND" = "warp" ] || [ "$XRAY_OUTBOUND" = "warp-selective" ]; the
   # Fetch WireGuard configs and save them locally
   mkdir -p /etc/wireguard
   if ! WG_CONFIGS=$(curl -sf "$WG_CONFIGS_URL"); then
-      log error warp "Couldn't fetch the WireGuard configs"
+      log error "Couldn't fetch the WireGuard configs"
       exit 1
   fi
 
@@ -31,7 +31,7 @@ if [ "$XRAY_OUTBOUND" = "warp" ] || [ "$XRAY_OUTBOUND" = "warp-selective" ]; the
   for iface in $(echo "$WG_CONFIGS" | jq -r 'keys[]'); do
       CONFIG_CONTENT=$(echo "$WG_CONFIGS" | jq -r ".\"$iface\"")
       echo "$CONFIG_CONTENT" > "/etc/wireguard/${iface}.conf"
-      debug warp "Saved the WireGuard config" "path=/etc/wireguard/${iface}.conf"
+      debug "Saved the WireGuard config" "path=/etc/wireguard/${iface}.conf"
       if [ "$DEBUG" = "true" ]; then echo "$CONFIG_CONTENT"; fi
   done
 
@@ -41,12 +41,12 @@ if [ "$XRAY_OUTBOUND" = "warp" ] || [ "$XRAY_OUTBOUND" = "warp-selective" ]; the
       # otherwise monit loops forever trying to restart a dead interface.
       if out=$(/usr/bin/wg-quick up "$iface" 2>&1); then
           if [ "$DEBUG" = "true" ]; then echo "$out"; fi
-          log info warp "WARP tunnel up" "iface=$iface"
+          log info "WARP tunnel up" "iface=$iface"
           MONIT_CONF_PATH="/etc/monit.d/$iface"
           cp /wg_monit "$MONIT_CONF_PATH"
           sed -i "s|\${INTERFACE}|$iface|g" "$MONIT_CONF_PATH"
       else
-          log warning warp "WARP tunnel failed, skipping its watchdog" "iface=$iface"
+          log warning "WARP tunnel failed, skipping its watchdog" "iface=$iface"
           echo "$out"
       fi
   done
@@ -60,13 +60,13 @@ wait_for "$XRAY_CONFIG_URL" || exit 1
 
 # Fetch the final config and verify it
 if ! curl -sf "$XRAY_CONFIG_URL" > /etc/xray/config.json; then
-    log error config "Couldn't fetch the xray config" "url=$XRAY_CONFIG_URL"
+    log error "Couldn't fetch the xray config" "url=$XRAY_CONFIG_URL"
     exit 1
 fi
 
 # Verify the config is valid JSON and functional
 if ! out=$(xray -test -config /etc/xray/config.json 2>&1); then
-    log error xray "Xray config is invalid"
+    log error "Xray config is invalid"
     echo "$out"
     cat /etc/xray/config.json
     exit 1
@@ -85,7 +85,7 @@ config_watcher() {
         if [ "$new" != "$(cat /etc/xray/config.json)" ]; then
             printf '%s' "$new" > /etc/xray/config.json
             if [ -f /run/xray.pid ]; then
-                kill -HUP "$(cat /run/xray.pid)" && log info xray "Xray config changed, reloaded"
+                kill -HUP "$(cat /run/xray.pid)" && log info "Xray config changed, reloaded"
             fi
         fi
     done
@@ -97,10 +97,10 @@ config_watcher &
 monit -I 2>&1 | while IFS= read -r line; do
     name=$(printf '%s' "$line" | sed -n "s/^'\([^']*\)'.*/\1/p")
     case "$line" in
-        *"process is not running") log warning monit "Process stopped, restarting it" "name=$name" ;;
-        *"process is running with pid"*) log info monit "Process is back up" "name=$name" ;;
-        *failed*|*unmonitor*) log warning monit "$line" ;;
-        *"trying to restart"|*" start: "*|*"Monit id"*|*"Stored in"*|*"Starting Monit"*|*" started") debug monit "$line" ;;
-        *) log info monit "$line" ;;
+        *"process is not running") log warning "Process stopped, restarting it" "name=$name" ;;
+        *"process is running with pid"*) log info "Process is back up" "name=$name" ;;
+        *failed*|*unmonitor*) log warning "$line" ;;
+        *"trying to restart"|*" start: "*|*"Monit id"*|*"Stored in"*|*"Starting Monit"*|*" started") debug "$line" ;;
+        *) log info "$line" ;;
     esac
 done

@@ -15,12 +15,11 @@ def get_machine_id() -> str:
                 machine_id = f.read().strip()
                 log.debug(
                     "Read the machine ID",
-                    cat="sys",
                     path=path,
                     id=machine_id,
                 )
                 return machine_id
-    log.debug("Couldn't read the machine ID", cat="sys", checked_paths=paths)
+    log.debug("Couldn't read the machine ID", checked_paths=paths)
     raise RuntimeError("Failed to retrieve machine ID: No valid machine-id file found.")
 
 
@@ -31,7 +30,7 @@ def exec_command(
     env: Optional[Mapping[str, str]] = None,
 ) -> subprocess.CompletedProcess:
     """Standardized subprocess execution wrapper."""
-    log.debug("Running command", cat="sys", cmd=" ".join(cmd), cwd=cwd)
+    log.debug("Running command", cmd=" ".join(cmd), cwd=cwd)
     try:
         # Merge current env with provided env if exists
         full_env = os.environ.copy()
@@ -49,7 +48,6 @@ def exec_command(
         if result.returncode != 0:
             log.debug(
                 "Command failed",
-                cat="sys",
                 cmd=" ".join(cmd),
                 exit_code=result.returncode,
                 stderr=result.stderr if capture_output else "Check container logs",
@@ -58,7 +56,6 @@ def exec_command(
     except Exception as e:
         log.debug(
             "Couldn't run command",
-            cat="sys",
             cmd=" ".join(cmd),
             error=str(e),
         )
@@ -83,5 +80,5 @@ def csv_to_dict(filename: str) -> Dict[str, Dict[str, str]]:
                         continue
                     data[link] = row
         except Exception as e:
-            log.error("Couldn't read the CSV", cat="sys", path=filename, error=str(e))
+            log.error("Couldn't read the CSV", path=filename, error=str(e))
     return data

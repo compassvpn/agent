@@ -38,7 +38,7 @@ class XrayService:
         @self.app.route("/config")
         def get_xray_config():
             if not config.initialized:
-                log.debug("Config requested before it's ready", cat="xray")
+                log.debug("Config requested before it's ready")
                 return "Not Ready", 503
             # Strip top-level null keys; some Xray versions reject them
             clean = {k: v for k, v in config.xray_config.items() if v is not None}
@@ -47,7 +47,7 @@ class XrayService:
         @self.app.route("/subdomain")
         def export_certs():
             if not config.initialized or not config.direct_subdomain:
-                log.debug("Subdomain requested before it's ready", cat="xray")
+                log.debug("Subdomain requested before it's ready")
                 return "Not Ready", 503
             return config.direct_subdomain
 
@@ -120,7 +120,7 @@ class XrayService:
                     t += " -1"
                 metrics.append(t)
             except Exception as e:
-                log.error("Couldn't build the metric for a config", cat="metrics", link=config_link, error=str(e))
+                log.error("Couldn't build the metric for a config", link=config_link, error=str(e))
                 continue
 
         self.latest_metrics = (
@@ -141,7 +141,7 @@ class XrayService:
         if (msg, kw) == self._last_result:
             return False
         self._last_result = (msg, kw)
-        getattr(log, level)(msg, cat="test", **kw)
+        getattr(log, level)(msg, **kw)
         return True
 
     def background_job(self) -> None:
@@ -170,7 +170,7 @@ class XrayService:
             with open(CONFIGS_CSV, "w", encoding="utf-8") as configs_csv:
                 configs_csv.write("\n".join(valid_links))
 
-            log.debug("Testing configs", cat="test", count=len(valid_links))
+            log.debug("Testing configs", count=len(valid_links))
             knife_cmd = [
                 "xray-knife",
                 "http",
@@ -231,14 +231,14 @@ class XrayService:
                 continue
             # Bumps the served config so xray's hourly watcher reloads the cert
             if not config.reload_certs():
-                log.error("TLS cert renewed, but xray keeps the old one until it restarts", cat="cert")
+                log.error("TLS cert renewed, but xray keeps the old one until it restarts")
             # nginx watches this file and reloads when it changes
             try:
                 with open("/var/log/compassvpn/.cert_renewed", "w", encoding="utf-8") as f:
                     f.write(str(time.time()))
             except OSError as e:
-                log.error("TLS cert renewed, but couldn't tell nginx to reload", cat="cert", error=str(e))
-            log.info("TLS cert renewed", cat="cert")
+                log.error("TLS cert renewed, but couldn't tell nginx to reload", error=str(e))
+            log.info("TLS cert renewed")
 
     def run(self) -> None:
         config.initialize()

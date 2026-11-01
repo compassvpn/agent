@@ -69,14 +69,12 @@ def _query_providers(
                 except (ValueError, TypeError):
                     log.debug(
                         "IP provider gave a non-IP answer, skipping",
-                        cat="net",
                         provider=provider["url"],
                     )
                     continue
 
                 log.debug(
                     "Found the public IP",
-                    cat="net",
                     provider=provider["url"],
                     ip=ip,
                 )
@@ -90,13 +88,12 @@ def _query_providers(
         except Exception as e:
             log.debug(
                 "IP provider failed",
-                cat="net",
                 provider=provider["url"],
                 error=str(e),
             )
             continue
 
-    log.debug("All IP providers failed", cat="net")
+    log.debug("All IP providers failed")
     if extra:
         return {"ip": "Unknown", "country": "Unknown"}
     return "Unknown"

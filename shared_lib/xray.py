@@ -78,7 +78,7 @@ def _generate_wg_keys() -> Tuple[str, str]:
 
 def register_warp() -> Dict[str, Any]:
     """Registers a new Warp account with Cloudflare and returns the configuration."""
-    log.debug("Registering with WARP", cat="warp")
+    log.debug("Registering with WARP")
     private_key, public_key = _generate_wg_keys()
 
     url = "https://api.cloudflareclient.com/v0a1922/reg"
@@ -101,7 +101,6 @@ def register_warp() -> Dict[str, Any]:
     if response.status_code != 200:
         log.debug(
             "WARP registration failed",
-            cat="warp",
             status=response.status_code,
             body=response.text[:200],
         )
@@ -134,7 +133,7 @@ def register_warp() -> Dict[str, Any]:
     )
 
     log.debug(
-        "Registered with WARP", cat="warp", v4=v4_addr, v6=v6_addr
+        "Registered with WARP", v4=v4_addr, v6=v6_addr
     )
 
     return {"addresses": addresses, "privatekey": private_key, "pubkey": peer_pubkey}

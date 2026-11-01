@@ -21,7 +21,6 @@ def _resolve_instance_ip() -> str:
             return ip
         log.warning(
             "Public IP lookup failed, retrying",
-            cat="net",
             attempt=f"{attempt}/{_IP_RETRIES}",
         )
         if attempt < _IP_RETRIES:
@@ -34,7 +33,6 @@ def _resolve_instance_ip() -> str:
         fallback = "unknown"
     log.error(
         "Couldn't find the public IP, labeling metrics by identifier",
-        cat="net",
         instance=fallback,
     )
     return fallback
