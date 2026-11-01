@@ -56,8 +56,8 @@ start() {
     if [ "${debug,,}" != "true" ]; then
         export ANSIBLE_DISPLAY_OK_HOSTS=false ANSIBLE_DISPLAY_SKIPPED_HOSTS=false
     fi
-    # The default output plus a line as each block starts (callback_plugins/phases.py).
-    export ANSIBLE_STDOUT_CALLBACK=phases ANSIBLE_CALLBACK_RESULT_FORMAT=yaml
+    # One line per task, and failures as one line with the error
+    export ANSIBLE_STDOUT_CALLBACK=community.general.unixy
 
     # Run Ansible from the pinned toolchain in pyproject.toml / uv.lock, so every
     # server gets the exact same versions. --frozen uses the committed lock as-is.

@@ -64,35 +64,34 @@
 
   tasks:
     # ---- prerequisites (every tag) -----------------------------------------
-    # Block names double as the progress lines agent.sh prints.
-    - name: Check the host
+    # Minimal images ship without python3 / python3-apt, and raw is the only
+    # module that works before they're there.
+    - name: Ensure python3 and python3-apt are present
+      ansible.builtin.raw: dpkg -s python3 python3-apt >/dev/null 2>&1 || (apt-get update && apt-get install -y python3 python3-apt)
+      changed_when: false
       tags: always
-      block:
-        # Minimal images ship without python3 / python3-apt, and raw is the only
-        # module that works before they're there.
-        - name: Ensure python3 and python3-apt are present
-          ansible.builtin.raw: dpkg -s python3 python3-apt >/dev/null 2>&1 || (apt-get update && apt-get install -y python3 python3-apt)
-          changed_when: false
 
-        - name: Gather facts
-          ansible.builtin.setup: {}
+    - name: Gather facts
+      ansible.builtin.setup: {}
+      tags: always
 
-        # The floor is ansible-core needing Python 3.9+, which rules out Ubuntu 20.04.
-        - name: Check supported OS and version (Debian 11+, Ubuntu 22.04+)
-          ansible.builtin.assert:
-            that:
-              - ansible_facts['distribution'] | lower in ['ubuntu', 'debian']
-              - >-
-                (ansible_facts['distribution'] | lower == 'debian' and
-                 ansible_facts['distribution_major_version'] | int >= 11)
-                or
-                (ansible_facts['distribution'] | lower == 'ubuntu' and
-                 ansible_facts['distribution_major_version'] | int >= 22)
-            fail_msg: >-
-              Unsupported OS: {{ ansible_facts['distribution'] }} {{ ansible_facts['distribution_version'] }}.
-              This playbook supports Debian 11+ and Ubuntu 22.04+ (ansible-core needs Python 3.9+ on the host).
-            success_msg: >-
-              {{ ansible_facts['distribution'] }} {{ ansible_facts['distribution_version'] }} is supported.
+    # The floor is ansible-core needing Python 3.9+, which rules out Ubuntu 20.04.
+    - name: Check supported OS and version (Debian 11+, Ubuntu 22.04+)
+      ansible.builtin.assert:
+        that:
+          - ansible_facts['distribution'] | lower in ['ubuntu', 'debian']
+          - >-
+            (ansible_facts['distribution'] | lower == 'debian' and
+             ansible_facts['distribution_major_version'] | int >= 11)
+            or
+            (ansible_facts['distribution'] | lower == 'ubuntu' and
+             ansible_facts['distribution_major_version'] | int >= 22)
+        fail_msg: >-
+          Unsupported OS: {{ ansible_facts['distribution'] }} {{ ansible_facts['distribution_version'] }}.
+          This playbook supports Debian 11+ and Ubuntu 22.04+ (ansible-core needs Python 3.9+ on the host).
+        success_msg: >-
+          {{ ansible_facts['distribution'] }} {{ ansible_facts['distribution_version'] }} is supported.
+      tags: always
 
     # ---- prepare: packages, DNS, tuning, firewall, logs --------------------
     - name: Prepare the host
@@ -149,13 +148,6 @@
             line: "127.0.1.1 {{ ansible_facts['hostname'] }}"
             state: present
 
-        - name: Set timezone to UTC
-          community.general.timezone:
-            name: Etc/UTC
-
-    - name: Set up DNS
-      tags: prepare
-      block:
         - name: Probe configured DNS servers
           ansible.builtin.command: "ping -c1 -W1 {{ item }}"
           register: dns_ping
@@ -194,9 +186,10 @@
           changed_when: true   # so it still shows when agent.sh hides ok tasks
           when: reachable_dns | length == 0
 
-    - name: Tune the kernel
-      tags: prepare
-      block:
+        - name: Set timezone to UTC
+          community.general.timezone:
+            name: Etc/UTC
+
         - name: Load nf_conntrack (needed by the conntrack sysctls)
           community.general.modprobe:
             name: nf_conntrack
@@ -223,9 +216,6 @@
           changed_when: false
           when: not openvz_file.stat.exists
 
-    - name: Set up the firewall
-      tags: prepare
-      block:
         - name: Ensure UFW is installed
           ansible.builtin.apt:
             name: ufw
@@ -299,9 +289,6 @@
           community.general.ufw:
             state: enabled
 
-    - name: Set up logs
-      tags: prepare
-      block:
         - name: Ensure CompassVPN log directory exists
           ansible.builtin.file:
             path: "{{ compassvpn_log_path }}"
