@@ -82,17 +82,20 @@ def _sec_ch_ua(v: int) -> str:
 def _xhttp_client(host: str, scheme: str) -> Dict[str, Any]:
     # Chrome on Windows doing a same-origin fetch(). Any User-Agent turns off
     # xray's own browser headers, so the whole set lives here. Chrome only
-    # sends the client hints, Sec-Fetch-* and Priority over https. No
-    # Accept-Encoding: Go only gunzips replies when it adds that header itself.
+    # sends br, zstd, the client hints, Sec-Fetch-* and Priority over https.
+    # With our own Accept-Encoding Go won't gunzip replies, which is fine:
+    # nginx has no gzip and Cloudflare doesn't compress text/event-stream.
     headers = {
         "User-Agent": f"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/{_CHROME}.0.0.0 Safari/537.36",
         "Accept": "*/*",
+        "Accept-Encoding": "gzip, deflate",
         "Accept-Language": "en-US,en;q=0.9,fa;q=0.8",
         "Referer": f"{scheme}://{host}/",
     }
     if scheme == "https":
         headers.update(
             {
+                "Accept-Encoding": "gzip, deflate, br, zstd",
                 "Sec-CH-UA": _sec_ch_ua(_CHROME),
                 "Sec-CH-UA-Mobile": "?0",
                 "Sec-CH-UA-Platform": '"Windows"',
@@ -111,20 +114,23 @@ def _xhttp_client(host: str, scheme: str) -> Dict[str, Any]:
 _XHTTP_DOWNLOAD_PORT = 2052
 
 
-def _xhttp_split_extra(address: str, host: str, path: str) -> str:
+def _xhttp_split_extra(address: str, host: str, port: int, path: str) -> str:
     # The download leg builds its requests only from the inner xhttpSettings,
-    # so the client settings go in again, plus path and host.
-    client = _xhttp_client(host, "http")
+    # so the client settings go in again, plus path and host. Chrome puts a
+    # non-default port in Host, Referer and Origin, so each leg carries its
+    # own (the link's host param has the upload port too).
+    up, down = f"{host}:{port}", f"{host}:{_XHTTP_DOWNLOAD_PORT}"
     download = {
         "address": address,
         "port": _XHTTP_DOWNLOAD_PORT,
         "network": "xhttp",
         "security": "none",
-        "xhttpSettings": {**client, "path": path, "host": host},
+        "xhttpSettings": {**_xhttp_client(down, "http"), "path": path, "host": down},
     }
     # Chrome sends Origin on every POST but not on same-origin GETs, so only
     # the upload side gets it.
-    upload = {**client, "headers": {**client["headers"], "Origin": f"http://{host}"}}
+    upload = _xhttp_client(up, "http")
+    upload["headers"]["Origin"] = f"http://{up}"
     return quote(
         json.dumps({**upload, "downloadSettings": download}, separators=(",", ":")),
         safe="",
@@ -738,11 +744,10 @@ class XrayConfig:
                     # replica's suffix; _make_replica can't reach it inside extra.
                     if "$xhttp_split_extra" in replica.get("link", ""):
                         xs = replica["inbound"]["streamSettings"]["xhttpSettings"]
+                        u = urlparse(replica["link"])
                         replica["link"] = replica["link"].replace(
                             "$xhttp_split_extra",
-                            _xhttp_split_extra(
-                                urlparse(replica["link"]).hostname, xs.get("host", ""), xs["path"]
-                            ),
+                            _xhttp_split_extra(u.hostname, xs.get("host", ""), u.port, xs["path"]),
                         )
                     replica["_replica_index"] = idx
                     if name in _NGINX_PROXY_MAP:
