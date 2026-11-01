@@ -104,7 +104,8 @@
 
         - name: Note when OpenVZ is detected
           ansible.builtin.debug:
-            msg: "OpenVZ detected - skipping kernel/sysctl tuning."
+            msg: "OpenVZ detected, skipping the kernel tuning"
+          changed_when: true   # so it still shows when agent.sh hides ok tasks
           when: openvz_file.stat.exists
 
         - name: Install base packages
@@ -181,7 +182,8 @@
 
         - name: Warn when no DNS server is reachable (leaving resolv.conf untouched)
           ansible.builtin.debug:
-            msg: "None of {{ dns_servers }} responded - /etc/resolv.conf left as-is."
+            msg: "No DNS server answered ({{ dns_servers | join(', ') }}), leaving /etc/resolv.conf as is"
+          changed_when: true   # so it still shows when agent.sh hides ok tasks
           when: reachable_dns | length == 0
 
         - name: Set timezone to UTC

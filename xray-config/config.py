@@ -4,7 +4,9 @@ import hashlib
 import ipaddress
 import json
 import re
+import shlex
 import string
+import sys
 from pathlib import Path
 from datetime import datetime, timezone
 from time import gmtime, sleep, strftime
@@ -329,28 +331,24 @@ class XrayConfig:
         try:
             response = requests.get(url, headers=headers, timeout=CF_API_TIMEOUT)
             log.debug(
-                "get_domain response",
-                hypothesisId="DNS",
+                "Cloudflare zone lookup",
                 status=response.status_code,
             )
             if response.status_code == 200:
                 self.domain = response.json()["result"]["name"]
-                log.info(
-                    f"The domain name associated with zone ID {self.cf_zone_id} is: {self.domain}",
-                    hypothesisId="DNS",
-                )
+                log.debug("Cloudflare zone found", domain=self.domain)
             else:
                 log.error(
-                    f"Failed to retrieve domain name. Status code: {response.status_code}",
-                    hypothesisId="DNS",
+                    "Couldn't look up the Cloudflare zone",
+                    status=response.status_code,
                     body=response.text[:200],
                 )
         except Exception as e:
-            log.error("get_domain error", hypothesisId="DNS", error=str(e))
+            log.error("Couldn't look up the Cloudflare zone", error=str(e))
 
     def _create_cf_records(self) -> Optional[str]:
         """Internal method to manage Cloudflare DNS records."""
-        log.debug("Starting create_cf_records", hypothesisId="DNS")
+        log.debug("Creating DNS records")
 
         def dns_record_already_exist(record_name: str) -> Optional[bool]:
             url = f"https://api.cloudflare.com/client/v4/zones/{self.cf_zone_id}/dns_records?type=A&name={record_name}.{self.domain}"
@@ -361,8 +359,8 @@ class XrayConfig:
             try:
                 response = requests.get(url, headers=headers, timeout=CF_API_TIMEOUT)
                 log.debug(
-                    f"Check DNS {record_name}",
-                    hypothesisId="DNS",
+                    "Checked DNS record",
+                    name=record_name,
                     status=response.status_code,
                 )
                 if response.status_code == 200:
@@ -370,7 +368,7 @@ class XrayConfig:
                     return bool(dns_records)
             except Exception as e:
                 log.error(
-                    f"Check DNS error {record_name}", hypothesisId="DNS", error=str(e)
+                    "Couldn't check DNS record", name=record_name, error=str(e)
                 )
             return None
 
@@ -393,22 +391,20 @@ class XrayConfig:
                 response = requests.post(endpoint, json=data, headers=headers, timeout=CF_API_TIMEOUT)
                 if response.status_code == 200:
                     log.debug(
-                        "Create DNS result",
+                        "Created DNS record",
                         name=name,
                         status=response.status_code,
-                        hypothesisId="DNS",
                     )
                     return name
                 else:
                     log.error(
-                        "Create DNS failed",
+                        "Couldn't create DNS record",
                         name=name,
                         status=response.status_code,
                         body=response.text[:200],
-                        hypothesisId="DNS",
                     )
             except Exception as e:
-                log.error(f"Create DNS error {name}", hypothesisId="DNS", error=str(e))
+                log.error("Couldn't create DNS record", name=name, error=str(e))
             return None
 
         server_ip_str = str(self.server_ip)
@@ -426,8 +422,7 @@ class XrayConfig:
         result = exec_command(["xray", "x25519", "-i", seed_b64], capture_output=True)
         if result.returncode != 0 or not result.stdout:
             log.error(
-                "xray x25519 failed; REALITY inbounds will be skipped",
-                hypothesisId="CFG",
+                "xray x25519 failed, skipping REALITY inbounds",
                 exit_code=result.returncode,
             )
             return
@@ -444,8 +439,7 @@ class XrayConfig:
         if not self.reality_private_key or not self.reality_public_key:
             self.reality_private_key = self.reality_public_key = ""
             log.error(
-                "Could not parse xray x25519 output; REALITY inbounds will be skipped",
-                hypothesisId="CFG",
+                "Couldn't parse xray x25519 output, skipping REALITY inbounds",
             )
             return
 
@@ -470,8 +464,7 @@ class XrayConfig:
         result = exec_command(["xray", "x25519", "-i", seed_b64], capture_output=True)
         if result.returncode != 0 or not result.stdout:
             log.error(
-                "xray x25519 failed; VLESS-encryption inbounds will be skipped",
-                hypothesisId="CFG",
+                "xray x25519 failed, skipping VLESS encryption inbounds",
                 exit_code=result.returncode,
             )
             return
@@ -488,8 +481,7 @@ class XrayConfig:
         if not self.vless_enc_private_key or not self.vless_enc_password:
             self.vless_enc_private_key = self.vless_enc_password = ""
             log.error(
-                "Could not parse xray x25519 output; VLESS-encryption inbounds will be skipped",
-                hypothesisId="CFG",
+                "Couldn't parse xray x25519 output, skipping VLESS encryption inbounds",
             )
             return
         # random obfuscation + the stock padding profile (shared by everyone,
@@ -516,12 +508,9 @@ class XrayConfig:
         self.env_config = load_env()
         self.is_debug_enabled = is_debug()
         self.anti_abuse = env_flag("ANTI_ABUSE")
-        log.debug(
-            "Loaded env_config", hypothesisId="CFG", keys=list(self.env_config.keys())
-        )
 
         self.config_id = get_identifier()
-        log.debug("Identifier", hypothesisId="CFG", id=self.config_id)
+        log.debug("Node identifier", id=self.config_id)
 
         uuid_res = exec_command(
             ["xray", "uuid", "-i", self.config_id], capture_output=True
@@ -540,8 +529,7 @@ class XrayConfig:
             self.xray_inbounds[name] = int(count) if count.isdigit() else 1
 
         log.debug(
-            "CF Config",
-            hypothesisId="CFG",
+            "Cloudflare settings",
             has_token=bool(self.cf_api_token),
             has_zone=bool(self.cf_zone_id),
         )
@@ -554,7 +542,7 @@ class XrayConfig:
             else:
                 self.server_ip = str(server_ip_raw) if server_ip_raw else "Unknown"
 
-        log.debug("Server IP", hypothesisId="NET", ip=self.server_ip)
+        log.debug("Server IP", ip=self.server_ip)
 
         # DNS and ACME Logic
         if self.cf_api_token and self.cf_zone_id and self.server_ip != "Unknown":
@@ -564,10 +552,9 @@ class XrayConfig:
                 if a_record:
                     self.subdomain = f"{a_record}.{self.domain}"
                     self.direct_subdomain = f"{a_record}-direct.{self.domain}"
-                    log.debug(
-                        "Subdomains set",
-                        hypothesisId="DNS",
-                        sub=self.subdomain,
+                    log.info(
+                        "DNS records ready",
+                        cdn=self.subdomain,
                         direct=self.direct_subdomain,
                     )
 
@@ -578,63 +565,36 @@ class XrayConfig:
                         else "--server zerossl"
                     )
 
-                    acme_bin = f"{ACME_SH_PATH}/acme.sh"
-
-                    def run_acme(cmd_args: str) -> bool:
-                        import shlex
-
-                        cmd_list = [acme_bin] + shlex.split(cmd_args)
-                        result = exec_command(
-                            cmd_list,
-                            # DEBUG=0: our app runs with DEBUG=true, but acme.sh
-                            # reads DEBUG as a numeric log level and spams
-                            # "integer expected".
-                            env={"CF_Token": self.cf_api_token or "", "DEBUG": "0"},
-                        )
-                        # acme.sh exits 2 when there is nothing to do (e.g. a
-                        # renewal that is not yet due); that is a no-op, not a
-                        # failure.
-                        if result.returncode not in (0, 2):
-                            log.error(
-                                "acme.sh command failed",
-                                exit_code=result.returncode,
-                                cmd=" ".join(cmd_list),
-                            )
-                            return False
-                        return True
-
                     cert_path = (
                         ACME_SH_PATH / f"{self.direct_subdomain}_ecc" / "fullchain.cer"
                     )
                     if cert_path.exists():
-                        log.debug("Cert exists, renewing", hypothesisId="CERT")
-                        run_acme(
+                        log.debug("TLS cert found, checking renewal")
+                        self.run_acme(
                             f"{ssl_provider_server} --renew --dns dns_cf -d {self.direct_subdomain}"
                         )
                     else:
-                        log.debug("Cert missing, issuing", hypothesisId="CERT")
-                        if run_acme(
+                        log.info("Issuing TLS cert")
+                        if self.run_acme(
                             f"{ssl_provider_server} --register-account -m my@email.com"
-                        ):
-                            if not run_acme(
-                                f"{ssl_provider_server} --issue --dns dns_cf -d {self.direct_subdomain}"
-                            ):
-                                log.error(
-                                    "Failed to issue SSL certificate; TLS inbounds will be skipped",
-                                    hypothesisId="CERT",
-                                )
-                        else:
+                        ) not in (0, 2) or self.run_acme(
+                            f"{ssl_provider_server} --issue --dns dns_cf -d {self.direct_subdomain}"
+                        ) not in (0, 2):
                             log.error(
-                                "Failed to register ACME account; TLS inbounds will be skipped",
-                                hypothesisId="CERT",
+                                "No TLS cert, skipping TLS inbounds",
                             )
+                    not_after = _cert_not_after(str(cert_path)) if cert_path.exists() else None
+                    if not_after:
+                        log.info(
+                            "TLS cert ready",
+                            expires=not_after.date().isoformat(),
+                        )
 
             else:
-                log.debug("Domain not found, skipping records", hypothesisId="DNS")
+                log.debug("No Cloudflare zone, skipping DNS and TLS")
         else:
-            log.debug(
-                "CF tokens missing or IP unknown, skipping DNS/SSL setup",
-                hypothesisId="CFG",
+            log.info(
+                "No Cloudflare settings or public IP, skipping DNS and TLS",
             )
 
         self.cf_clean_ip_domain = self.env_config.get("CF_CLEAN_IP_DOMAIN", "npmjs.com")
@@ -718,8 +678,8 @@ class XrayConfig:
                 count = self.xray_inbounds.get(name, 1)
                 if name in _NO_REPLICA_SUPPORT and count > 1:
                     log.warning(
-                        f"{name} does not support replicas; capped at 1",
-                        hypothesisId="CFG",
+                        "Inbound doesn't support replicas, using 1",
+                        inbound=name,
                     )
                     count = 1
                 for idx in range(1, count + 1):
@@ -742,7 +702,7 @@ class XrayConfig:
                         replica["_nginx_port"], replica["_nginx_template"] = _NGINX_PROXY_MAP[name]
                     expanded.append(replica)
                 if count > 1:
-                    log.info(f"{name}: {count} replicas configured", hypothesisId="CFG")
+                    log.info("Replicas configured", inbound=name, count=count)
             self.configured_inbounds = expanded
 
         # Drop any inbound whose TLS cert/key resolved to an empty string after
@@ -769,9 +729,8 @@ class XrayConfig:
                         if cert_file not in warned_certs:
                             warned_certs.add(cert_file)
                             log.error(
-                                "TLS cert is EXPIRED; skipping its inbound(s) - "
-                                "renewal is failing, check the CF token / acme.sh logs",
-                                hypothesisId="CERT",
+                                "TLS cert expired, skipping its inbounds",
+                                hint="renewal is failing, check the Cloudflare token",
                                 cert=cert_file,
                                 not_after=not_after.isoformat(),
                             )
@@ -779,8 +738,7 @@ class XrayConfig:
                     if days_left < 14 and cert_file not in warned_certs:
                         warned_certs.add(cert_file)
                         log.warning(
-                            "TLS cert expires soon; renewal may be failing",
-                            hypothesisId="CERT",
+                            "TLS cert expires soon, renewal may be failing",
                             cert=cert_file,
                             days_left=days_left,
                         )
@@ -791,8 +749,8 @@ class XrayConfig:
         skipped = before - len(self.configured_inbounds)
         if skipped:
             log.warning(
-                f"Skipped {skipped} TLS inbound(s) with missing certificates",
-                hypothesisId="CFG",
+                "Skipped TLS inbounds with no cert",
+                count=skipped,
             )
 
         # Same idea for REALITY: an empty privateKey would fail `xray -test`
@@ -806,8 +764,8 @@ class XrayConfig:
             skipped = before - len(self.configured_inbounds)
             if skipped:
                 log.warning(
-                    f"Skipped {skipped} REALITY inbound(s): key generation failed",
-                    hypothesisId="CFG",
+                    "Skipped REALITY inbounds, key generation failed",
+                    count=skipped,
                 )
 
         # Same idea for VLESS Encryption: an empty decryption string would fail
@@ -822,8 +780,8 @@ class XrayConfig:
             skipped = before - len(self.configured_inbounds)
             if skipped:
                 log.warning(
-                    f"Skipped {skipped} VLESS-encryption inbound(s): key generation failed",
-                    hypothesisId="CFG",
+                    "Skipped VLESS encryption inbounds, key generation failed",
+                    count=skipped,
                 )
 
         # Build nginx location blocks for replicas that survived TLS filtering
@@ -904,8 +862,8 @@ class XrayConfig:
                 {"outboundTag": "block-ports", "network": "tcp", "port": ABUSE_PORTS}
             )
             log.info(
-                f"Anti-abuse on: blocking outbound TCP {ABUSE_PORTS}",
-                hypothesisId="CFG",
+                "Anti-abuse on, blocking outbound TCP ports",
+                ports=ABUSE_PORTS,
             )
 
         block_rules += [
@@ -982,15 +940,15 @@ class XrayConfig:
                     dns_server = custom_dns_config
                 except ValueError:
                     log.warning(
-                        f"CUSTOM_DNS value {custom_dns_config!r} is not a supported format; using default DNS",
-                        hypothesisId="CFG",
+                        "CUSTOM_DNS isn't a supported format, using the default DNS",
+                        value=custom_dns_config,
                     )
 
         # Keep whatever the operator picked. The node's own resolver and cf get
         # swapped for ControlD, which filters more.
         if self.anti_abuse and dns_server in (None, CF_DNS):
             dns_server = CONTROLD_DNS
-            log.info("Anti-abuse on: using the ControlD resolver", hypothesisId="CFG")
+            log.info("Anti-abuse on, using the ControlD resolver")
 
         if dns_server:
             self.xray_config["dns"] = {
@@ -1017,9 +975,7 @@ class XrayConfig:
         ]
         if selective and not warp_domains:
             log.warning(
-                "XRAY_OUTBOUND is warp-selective but WARP_DOMAINS is empty; "
-                "using direct outbound",
-                hypothesisId="WARP",
+                "WARP_DOMAINS is empty, using the direct outbound instead of warp-selective",
             )
             selective = False
             outbound_mode = "direct"
@@ -1033,10 +989,10 @@ class XrayConfig:
                     self.warps.append(register_warp())
                 self.warps_ready = True
                 warp_active = True
+                log.info("WARP registered", tunnels=len(self.warps))
             except Exception as e:
                 log.error(
-                    "WARP registration failed; falling back to direct outbound",
-                    hypothesisId="WARP",
+                    "WARP registration failed, using the direct outbound",
                     error=str(e),
                 )
 
@@ -1129,18 +1085,13 @@ Endpoint = engage.cloudflareclient.com:2408
         ]
 
         if not active_inbounds:
-            log.warning(
-                "No user-facing inbounds are active. "
-                "Clients will not be able to connect. "
-                "Check CF credentials, TLS cert availability, and XRAY_INBOUNDS.",
-                hypothesisId="CFG",
+            log.error(
+                "No inbounds are active, clients can't connect",
+                hint="check the Cloudflare settings, TLS cert and XRAY_INBOUNDS",
             )
         else:
             tags = [ib["inbound"]["tag"] for ib in active_inbounds]
-            log.info(
-                f"Initialized with {len(active_inbounds)} active inbound(s): {', '.join(tags)}",
-                hypothesisId="CFG",
-            )
+            log.info("Inbounds ready", tags=",".join(tags))
 
         self.initialized = True
 
@@ -1151,11 +1102,26 @@ Endpoint = engage.cloudflareclient.com:2408
         cert_path = ACME_SH_PATH / f"{self.direct_subdomain}_ecc" / "fullchain.cer"
         key_path = ACME_SH_PATH / f"{self.direct_subdomain}_ecc" / f"{self.direct_subdomain}.key"
         if not cert_path.exists() or not key_path.exists():
-            log.error("reload_certs: cert files not found after renewal", hypothesisId="CERT")
+            log.error("TLS cert files missing after renewal")
             return False
         self._cert_serial += 1
         self.xray_config["_cert_serial"] = self._cert_serial
         return True
+
+    def run_acme(self, cmd_args: str) -> int:
+        """Run acme.sh and return its exit code. Its chatty output only shows in debug or on failure."""
+        result = exec_command(
+            [str(ACME_SH_PATH / "acme.sh")] + shlex.split(cmd_args),
+            capture_output=not is_debug(),
+            # DEBUG=0: our app runs with DEBUG=true, but acme.sh reads DEBUG as
+            # a numeric log level and spams "integer expected".
+            env={"CF_Token": self.cf_api_token or "", "DEBUG": "0"},
+        )
+        # acme.sh exits 2 when there's nothing to do, like a renewal that isn't due yet
+        if result.returncode not in (0, 2):
+            log.error("acme.sh failed", exit_code=result.returncode, args=cmd_args)
+            sys.stderr.write((result.stdout or "") + (result.stderr or ""))
+        return result.returncode
 
     def get_config_links(self) -> List[str]:
         """Return formatted config links for active inbounds."""

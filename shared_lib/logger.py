@@ -55,8 +55,8 @@ except Exception:
     pass
 
 
-# Quiet by default (warnings + errors only); DEBUG=true turns on full verbosity.
-log_level = logging.DEBUG if is_debug() else logging.WARNING
+# info and up by default, so keep info for milestones; DEBUG=true shows everything.
+log_level = logging.DEBUG if is_debug() else logging.INFO
 
 # Configure standard logging for both file and stdout
 logging.basicConfig(
@@ -64,15 +64,23 @@ logging.basicConfig(
     format="%(message)s",
     handlers=handlers,
 )
+# Flask's per-request lines are only worth seeing while debugging.
+logging.getLogger("werkzeug").setLevel(log_level if is_debug() else logging.WARNING)
 
+# logfmt, the same shape xray-exporter and alloy print: time= level= msg=
 structlog.configure(
     processors=[
-        structlog.processors.TimeStamper(fmt="iso"),
+        structlog.processors.TimeStamper(fmt="%Y-%m-%dT%H:%M:%SZ", key="time"),
         structlog.processors.add_log_level,
         structlog.processors.StackInfoRenderer(),
         structlog.processors.format_exc_info,
         structlog.processors.UnicodeDecoder(),
-        structlog.processors.JSONRenderer(),
+        structlog.processors.EventRenamer("msg"),
+        structlog.processors.LogfmtRenderer(
+            key_order=["time", "level", "msg"],
+            drop_missing=True,
+            bool_as_flag=False,
+        ),
     ],
     logger_factory=structlog.stdlib.LoggerFactory(),
 )
@@ -80,5 +88,4 @@ structlog.configure(
 log = structlog.get_logger()
 
 # One line at startup so the operator can confirm the flag actually took effect.
-if is_debug():
-    log.info("Debug logging enabled", hypothesisId="LOG")
+log.debug("Debug logging on")

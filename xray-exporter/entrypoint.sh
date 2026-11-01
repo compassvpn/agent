@@ -1,10 +1,8 @@
 #!/bin/sh
-# Follow the stack's DEBUG flag (read from the mounted env_file): debug when it's
-# on, info otherwise. info is the exporter's own default - warn hid the startup
-# and operational lines (server start, log-parser attach, geoip progress), so
-# operators saw nothing until an error. Normalized the same way as the
-# nginx/xray entrypoints so a stray capital or quotes still work.
-DEBUG=$(printf '%s' "${DEBUG:-false}" | tr -d "\"'" | tr '[:upper:]' '[:lower:]')
+# Follow the stack's DEBUG flag: debug when it's on, info otherwise. info is the
+# exporter's own default - warn hid the startup and operational lines (server
+# start, log-parser attach, geoip progress), so operators saw nothing until an error.
+. /shared_lib/common.sh
 if [ "$DEBUG" = "true" ]; then
     LOG_LEVEL=debug
 else

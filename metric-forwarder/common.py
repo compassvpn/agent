@@ -20,10 +20,8 @@ def _resolve_instance_ip() -> str:
         if ip and ip != "Unknown":
             return ip
         log.warning(
-            "Public IP lookup failed; retrying",
-            hypothesisId="NET",
-            attempt=attempt,
-            of=_IP_RETRIES,
+            "Public IP lookup failed, retrying",
+            attempt=f"{attempt}/{_IP_RETRIES}",
         )
         if attempt < _IP_RETRIES:
             sleep(_IP_RETRY_DELAY)
@@ -34,8 +32,7 @@ def _resolve_instance_ip() -> str:
     except Exception:
         fallback = "unknown"
     log.error(
-        "Public IP unresolved after retries; labeling metrics by identifier",
-        hypothesisId="NET",
+        "Couldn't find the public IP, labeling metrics by identifier",
         instance=fallback,
     )
     return fallback
