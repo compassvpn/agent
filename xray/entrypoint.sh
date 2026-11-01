@@ -68,8 +68,7 @@ fi
 if ! out=$(xray -test -config /etc/xray/config.json 2>&1); then
     log error xray "Xray config is invalid"
     echo "$out"
-    # The config holds private keys, so only dump it while debugging
-    if [ "$DEBUG" = "true" ]; then cat /etc/xray/config.json; fi
+    cat /etc/xray/config.json
     exit 1
 fi
 if [ "$DEBUG" = "true" ]; then echo "$out"; fi
