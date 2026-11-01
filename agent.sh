@@ -67,8 +67,8 @@ start() {
         -e "auto_update=${AUTO_UPDATE:-}" \
         -e "redeploy_interval=${REDEPLOY_INTERVAL:-}"
 
+    # Ansible's recap already ends with a blank line
     cat <<'EOF'
-
 Done. Metrics should show up in Grafana within 5 to 10 minutes.
 
 Useful commands:
