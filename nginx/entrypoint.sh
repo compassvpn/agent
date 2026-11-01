@@ -73,4 +73,5 @@ LAST_FLAG_TIME=$(cat "$CERT_FLAG" 2>/dev/null || true)
 ) &
 
 log info "Starting nginx" "tls=$TLS"
-nginx -g "daemon off;"
+# exec so nginx gets the stop signal (SIGQUIT), which sh ignores
+exec nginx -g "daemon off;"
