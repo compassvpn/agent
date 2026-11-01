@@ -23,6 +23,9 @@ x-public-tuned: &public-tuned
     # ports run out at peak. ~64K instead, plus safe TIME_WAIT reuse.
     - "net.ipv4.ip_local_port_range=1024 65535"
     - net.ipv4.tcp_tw_reuse=1
+    # Docker's DNS server listens on a random ephemeral port in each container.
+    # If it lands on one of our listen ports, xray or nginx can't bind it.
+    - "net.ipv4.ip_local_reserved_ports=2052-2099,8000-9999,54321"
   logging:
     driver: "json-file"
     options:
@@ -39,6 +42,9 @@ x-log-small: &log-small
 x-hardening: &hardening
   security_opt:
     - "no-new-privileges:true"
+  # Our entrypoints run as PID 1, which ignores SIGTERM, so every stop sat out
+  # the 10s timeout. tini passes the signal on.
+  init: true
 
 services:
 
