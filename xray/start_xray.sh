@@ -18,7 +18,8 @@ echo $! > /run/xray.pid
 
 sleep 1
 if kill -0 "$(cat /run/xray.pid)" 2>/dev/null; then
-    log info xray "Xray started" "gomemlimit=$GOMEMLIMIT"
+    log info xray "Xray started"
+    debug xray "Go memory limit set" "gomemlimit=$GOMEMLIMIT"
 else
     log error xray "Xray exited right after starting" log=/var/log/compassvpn/xray.log
 fi

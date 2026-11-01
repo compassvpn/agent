@@ -25,8 +25,10 @@ def _check_push():
 
     sent = total("prometheus_remote_storage_samples_total")
     failed = total("prometheus_remote_storage_samples_failed_total")
-    if sent:
-        log.info("Metrics pushed", cat="metrics", samples=sent, failed=failed)
+    if sent and not failed:
+        log.info("Metrics pushed", cat="metrics", samples=sent)
+    elif sent:
+        log.warning("Some metrics failed to push", cat="metrics", samples=sent, failed=failed)
     else:
         log.warning("No metrics pushed yet", cat="metrics", failed=failed, hint="check the remote write URL and login")
 

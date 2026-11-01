@@ -201,7 +201,7 @@ class XrayService:
 
             self.valid_configs = csv_to_dict(str(VALID_CSV))
             failed = [
-                f'{parse_config_link(link)["name"]} ({row.get("failure_kind") or row.get("reason") or "failed"})'
+                parse_config_link(link)["name"]
                 for link, row in self.valid_configs.items()
                 if row.get("status") != "passed"
             ]
@@ -211,7 +211,7 @@ class XrayService:
                     sys.stderr.write((result.stdout or "") + (result.stderr or ""))
             elif failed:
                 msg = "All configs failing" if len(failed) == len(self.valid_configs) else "Some configs failing"
-                self._log_changed("warning", msg, passed=passed, failed=", ".join(failed))
+                self._log_changed("warning", msg, passed=passed, failed=",".join(failed))
             else:
                 self._log_changed("info", "All configs passing", passed=passed)
 
@@ -238,7 +238,7 @@ class XrayService:
                     f.write(str(time.time()))
             except OSError as e:
                 log.error("TLS cert renewed, but couldn't tell nginx to reload", cat="cert", error=str(e))
-            log.info("TLS cert renewed", cat="cert", domain=config.direct_subdomain)
+            log.info("TLS cert renewed", cat="cert")
 
     def run(self) -> None:
         config.initialize()

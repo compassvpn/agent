@@ -517,9 +517,6 @@ class XrayConfig:
         self.env_config = load_env()
         self.is_debug_enabled = is_debug()
         self.anti_abuse = env_flag("ANTI_ABUSE")
-        log.debug(
-            "Loaded env_file", cat="config", keys=list(self.env_config.keys())
-        )
 
         self.config_id = get_identifier()
         log.debug("Node identifier", cat="config", id=self.config_id)
@@ -588,7 +585,7 @@ class XrayConfig:
                             f"{ssl_provider_server} --renew --dns dns_cf -d {self.direct_subdomain}"
                         )
                     else:
-                        log.info("Issuing TLS cert", cat="cert", domain=self.direct_subdomain)
+                        log.info("Issuing TLS cert", cat="cert")
                         if self.run_acme(
                             f"{ssl_provider_server} --register-account -m my@email.com"
                         ) not in (0, 2) or self.run_acme(
@@ -603,7 +600,6 @@ class XrayConfig:
                         log.info(
                             "TLS cert ready",
                             cat="cert",
-                            domain=self.direct_subdomain,
                             expires=not_after.date().isoformat(),
                         )
 
@@ -1120,7 +1116,7 @@ Endpoint = engage.cloudflareclient.com:2408
             )
         else:
             tags = [ib["inbound"]["tag"] for ib in active_inbounds]
-            log.info("Inbounds ready", cat="config", count=len(tags), tags=",".join(tags))
+            log.info("Inbounds ready", cat="config", tags=",".join(tags))
 
         self.initialized = True
 

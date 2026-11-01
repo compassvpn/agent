@@ -29,5 +29,5 @@ wait_for() {
         debug config "xray-config isn't ready yet" "url=$1" "attempt=$_tries/60"
         sleep 2
     done
-    if [ "$_tries" -gt 0 ]; then log info config "Connected to xray-config" "after=$((_tries * 2))s"; fi
+    if [ "$_tries" -gt 0 ]; then debug config "Connected to xray-config" "after=$((_tries * 2))s"; fi
 }

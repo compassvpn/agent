@@ -34,9 +34,9 @@ if [ -n "${CF_API_TOKEN:-}" ] && [ -n "${CF_ZONE_ID:-}" ]; then
     DIRECT_SUBDOMAIN="$DIRECT_SUBDOMAIN" \
         envsubst '${FAKE_WEBSITE}${NGINX_PATH}${DIRECT_SUBDOMAIN}' \
         < "$TLS_TEMPLATE" > "$TLS_CONF"
-    log info nginx "TLS on" "domain=$DIRECT_SUBDOMAIN"
+    TLS=on
 else
-    log info nginx "No Cloudflare settings, TLS off"
+    TLS=off
     : > "$TLS_CONF"
 fi
 
@@ -72,5 +72,5 @@ LAST_FLAG_TIME=$(cat "$CERT_FLAG" 2>/dev/null || true)
     done
 ) &
 
-log info nginx "Starting nginx"
+log info nginx "Starting nginx" "tls=$TLS"
 nginx -g "daemon off;"
