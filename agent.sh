@@ -28,13 +28,13 @@ start() {
 
     # Must run as root
     if [ "$EUID" -ne 0 ]; then
-        echo "Error: this must be run as root."
+        echo "Error: run this as root"
         exit 1
     fi
 
     # env_file is required (the stack and the playbook both read it)
     if [ ! -f env_file ]; then
-        echo "Error: 'env_file' does not exist. Use env_file.example as a template."
+        echo "Error: env_file is missing. Copy env_file.example to env_file and fill it in"
         exit 1
     fi
     # Pull in the two operational knobs the playbook needs for cron (not secrets).
@@ -47,52 +47,58 @@ start() {
     # Ansible's controller needs Python 3.12+, newer than these releases ship;
     # uv fetches a suitable one itself, so we only need uv on the box.
     if command_not_exists uv; then
-        echo "Installing uv..."
+        echo "Installing uv"
         curl -LsSf https://astral.sh/uv/install.sh | sh
     fi
 
     # Run Ansible from the pinned toolchain in pyproject.toml / uv.lock, so every
     # server gets the exact same versions. --frozen uses the committed lock as-is.
-    echo "Converging the host with Ansible..."
+    # Only show tasks that changed or failed, unless DEBUG is on.
+    local debug="${DEBUG:-false}"
+    if [ "${debug,,}" != "true" ]; then
+        export ANSIBLE_DISPLAY_OK_HOSTS=false ANSIBLE_DISPLAY_SKIPPED_HOSTS=false
+    fi
+    export ANSIBLE_CALLBACK_RESULT_FORMAT=yaml
+
+    echo "Setting up the host"
     uv run --frozen ansible-playbook agent.yml \
         -e "auto_update=${AUTO_UPDATE:-}" \
         -e "redeploy_interval=${REDEPLOY_INTERVAL:-}"
 
     echo
-    echo "Please allow 5~10 minutes for the metrics to appear in your Grafana dashboard."
-    echo
+    echo "Done. Metrics should show up in Grafana within 5 to 10 minutes"
 }
 
 # Stop the stack and remove its containers, networks, volumes and images.
 stop() {
     set -euo pipefail
-    echo "Stopping and cleaning up the stack..."
+    echo "Stopping and removing the stack"
     docker compose down --rmi all --volumes --remove-orphans
-    echo "Done."
+    echo "Done"
 }
 
 # Pull the latest code and reconverge if the remote has moved (used by cron).
 update() {
     set -euo pipefail
 
-    git fetch || { echo "git fetch failed; skipping update."; exit 0; }
+    git fetch || { echo "git fetch failed, skipping the update"; exit 0; }
     local head upstream
     head=$(git rev-parse @)
     # Bail out cleanly if this checkout has no upstream (e.g. a detached deploy).
     upstream=$(git rev-parse @{u} 2>/dev/null || true)
     if [ -z "$upstream" ]; then
-        echo "No upstream tracking branch; skipping update."
+        echo "No upstream branch, skipping the update"
         exit 0
     fi
 
     if [ "$head" != "$upstream" ]; then
-        echo "There are new changes. Updating..."
+        echo "New changes found, updating"
         git reset --hard "@{u}"
         chmod +x ./*.sh
-        echo "Update done - reconverging..."
+        echo "Updated, setting up again"
         exec ./agent.sh start
     else
-        echo "No new changes."
+        echo "Already up to date"
     fi
 }
 
@@ -104,36 +110,25 @@ logs() {
 # Print the VPN config links served by xray-config.
 configs() {
     raw_data=$(docker compose exec xray-config curl -s http://localhost:5000/metrics 2>/dev/null)
-
-    echo
-    echo "CompassVPN Configuration Links"
-    echo "=============================="
-    echo
-
     if [ -z "$raw_data" ]; then
-        echo "No data available. The xray-config service may not be ready yet."
-        echo
-        echo "=============================="
-        echo
+        echo "No configs yet, xray-config may still be starting"
         return 0
     fi
 
-    echo "$raw_data" | grep "vpn_config" | grep -v "HELP" | grep -v "TYPE" | while read -r line; do
+    echo
+    echo "$raw_data" | grep "^vpn_config{" | while read -r line; do
         config_name=$(echo "$line" | grep -o 'config_name="[^"]*"' | sed 's/config_name="//;s/"//')
         config_link=$(echo "$line" | grep -o 'config_link="[^"]*"' | sed 's/config_link="//;s/"$//')
         latency=$(echo "$line" | awk '{print $NF}')
 
         if [ "$latency" = "-1" ]; then
-            echo "${config_name:-unknown} (FAIL: -1 ms)"
+            echo "${config_name:-unknown} (down)"
         else
-            echo "${config_name:-unknown} (OK: ${latency} ms)"
+            echo "${config_name:-unknown} (up, ${latency} ms)"
         fi
         echo "${config_link}"
         echo
     done
-
-    echo "=============================="
-    echo
 }
 
 case "${1:-}" in

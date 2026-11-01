@@ -2,11 +2,8 @@
 
 rm -f /run/*.pid
 
-# Normalize DEBUG (accept True/TRUE/"true") to match the Python services.
-DEBUG=$(printf '%s' "${DEBUG:-false}" | tr -d "\"'" | tr '[:upper:]' '[:lower:]')
-if [ "$DEBUG" = "true" ]; then
-    echo "Debug mode enabled"
-fi
+. /shared_lib/common.sh
+debug log "Debug logging on"
 
 # Mock resolvconf to prevent wg-quick from breaking Docker DNS
 # This keeps the container's /etc/resolv.conf (Docker DNS) intact.
@@ -21,59 +18,36 @@ if [ "$XRAY_OUTBOUND" = "warp" ] || [ "$XRAY_OUTBOUND" = "warp-selective" ]; the
   # xray-config upstream URL for WireGuard configs
   WG_CONFIGS_URL="http://xray-config:5000/wg-configs"
 
-  # Wait for xray-config to be ready
-  MAX_RETRIES=30
-  RETRY_COUNT=0
-  while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
-      RESPONSE=$(curl -s -o /dev/null -w "%{http_code}" "$WG_CONFIGS_URL")
-      if [ "$RESPONSE" -eq 200 ]; then
-          echo "xray-config is ready: $WG_CONFIGS_URL"
-          break
-      fi
-      echo "Waiting for xray-config to generate WG configs... (HTTP status: $RESPONSE)"
-      sleep 2
-      RETRY_COUNT=$((RETRY_COUNT + 1))
-  done
-
-  if [ $RETRY_COUNT -eq $MAX_RETRIES ]; then
-      echo "Error: xray-config timed out"
-      exit 1
-  fi
+  wait_for "$WG_CONFIGS_URL" || exit 1
 
   # Fetch WireGuard configs and save them locally
   mkdir -p /etc/wireguard
   if ! WG_CONFIGS=$(curl -sf "$WG_CONFIGS_URL"); then
-      echo "Error: Failed to fetch WireGuard configs"
+      log error warp "Couldn't fetch the WireGuard configs"
       exit 1
-  fi
-
-  if [ "$DEBUG" = "true" ]; then
-      echo "$WG_CONFIGS"
   fi
 
   # Extract and save each WireGuard config
   for iface in $(echo "$WG_CONFIGS" | jq -r 'keys[]'); do
       CONFIG_CONTENT=$(echo "$WG_CONFIGS" | jq -r ".\"$iface\"")
       echo "$CONFIG_CONTENT" > "/etc/wireguard/${iface}.conf"
-      if [ "$DEBUG" = "true" ]; then
-          echo "Saved /etc/wireguard/${iface}.conf:"
-          echo "$CONFIG_CONTENT"
-      else
-          echo "Saved /etc/wireguard/${iface}.conf"
-      fi
+      debug warp "Saved the WireGuard config" "path=/etc/wireguard/${iface}.conf"
+      if [ "$DEBUG" = "true" ]; then echo "$CONFIG_CONTENT"; fi
   done
 
   # Bring up wg interfaces
   for iface in $(echo "$WG_CONFIGS" | jq -r 'keys[]'); do
-      echo "Bringing up $iface..."
       # Only install the monit watchdog if the interface actually came up -
       # otherwise monit loops forever trying to restart a dead interface.
-      if /usr/bin/wg-quick up "$iface"; then
+      if out=$(/usr/bin/wg-quick up "$iface" 2>&1); then
+          if [ "$DEBUG" = "true" ]; then echo "$out"; fi
+          log info warp "WARP tunnel up" "iface=$iface"
           MONIT_CONF_PATH="/etc/monit.d/$iface"
           cp /wg_monit "$MONIT_CONF_PATH"
           sed -i "s|\${INTERFACE}|$iface|g" "$MONIT_CONF_PATH"
       else
-          echo "Warning: Failed to bring up $iface; skipping its monit watchdog"
+          log warning warp "WARP tunnel failed, skipping its watchdog" "iface=$iface"
+          echo "$out"
       fi
   done
 fi
@@ -82,42 +56,26 @@ sed -i 's/^#  include \/etc\/monit\.d\/\*$/  include \/etc\/monit.d\/*/' /etc/mo
 
 XRAY_CONFIG_URL="http://xray-config:5000/config"
 
-# Wait for Xray config
-MAX_RETRIES=30
-RETRY_COUNT=0
-while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
-    RESPONSE=$(curl -s -o /dev/null -w "%{http_code}" "$XRAY_CONFIG_URL")
-    if [ "$RESPONSE" -eq 200 ]; then
-        echo "xray-config is ready: $XRAY_CONFIG_URL"
-        break
-    fi
-    echo "Waiting for xray-config... (HTTP status: $RESPONSE)"
-    sleep 2
-    RETRY_COUNT=$((RETRY_COUNT + 1))
-done
-
-if [ $RETRY_COUNT -eq $MAX_RETRIES ]; then
-    echo "Error: xray-config timed out"
-    exit 1
-fi
+wait_for "$XRAY_CONFIG_URL" || exit 1
 
 # Fetch the final config and verify it
 if ! curl -sf "$XRAY_CONFIG_URL" > /etc/xray/config.json; then
-    echo "Error: Failed to fetch xray config from $XRAY_CONFIG_URL"
+    log error config "Couldn't fetch the xray config" "url=$XRAY_CONFIG_URL"
     exit 1
 fi
 
 # Verify the config is valid JSON and functional
-if ! xray -test -config /etc/xray/config.json; then
-    echo "Error: Fetched xray config is invalid"
-    cat /etc/xray/config.json
+if ! out=$(xray -test -config /etc/xray/config.json 2>&1); then
+    log error xray "Xray config is invalid"
+    echo "$out"
+    # The config holds private keys, so only dump it while debugging
+    if [ "$DEBUG" = "true" ]; then cat /etc/xray/config.json; fi
     exit 1
 fi
+if [ "$DEBUG" = "true" ]; then echo "$out"; fi
 
 # Start Xray immediately so xray-config can test it
 /start_xray.sh
-
-monit --version
 
 # Poll xray-config hourly; if the served config changes (e.g. renewed TLS cert),
 # write the new config.json and SIGHUP xray so it reloads without a full restart.
@@ -128,7 +86,7 @@ config_watcher() {
         if [ "$new" != "$(cat /etc/xray/config.json)" ]; then
             printf '%s' "$new" > /etc/xray/config.json
             if [ -f /run/xray.pid ]; then
-                kill -HUP "$(cat /run/xray.pid)" && echo "xray config updated and reloaded"
+                kill -HUP "$(cat /run/xray.pid)" && log info xray "Xray config changed, reloaded"
             fi
         fi
     done

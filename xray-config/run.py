@@ -1,14 +1,17 @@
 import json
+import sys
 import threading
+import time
 from typing import Dict, Optional, Union
 from flask import Flask, abort
+from werkzeug.serving import make_server
 
 from config import config
 from shared_lib.system import exec_command, get_machine_id, csv_to_dict
 from shared_lib.logger import log, is_debug
 from shared_lib.network import get_public_ip
 from shared_lib.xray import parse_config_link
-from shared_lib.paths import CONFIGS_CSV, VALID_CSV, ACME_SH_PATH
+from shared_lib.paths import CONFIGS_CSV, VALID_CSV
 
 
 def _prom_label_escape(value: object) -> str:
@@ -28,15 +31,14 @@ class XrayService:
         self.latest_metrics: str = ""
         self.instance_location_info: Optional[Union[str, Dict[str, str]]] = None
         self._shutdown_event: threading.Event = threading.Event()
+        self._last_result: tuple = ()
         self._setup_routes()
 
     def _setup_routes(self) -> None:
         @self.app.route("/config")
         def get_xray_config():
             if not config.initialized:
-                log.info(
-                    "Xray Config requested but not yet initialized", hypothesisId="XRAY"
-                )
+                log.debug("Config requested before it's ready", cat="xray")
                 return "Not Ready", 503
             # Strip top-level null keys; some Xray versions reject them
             clean = {k: v for k, v in config.xray_config.items() if v is not None}
@@ -45,7 +47,7 @@ class XrayService:
         @self.app.route("/subdomain")
         def export_certs():
             if not config.initialized or not config.direct_subdomain:
-                log.info("Subdomain requested but not yet ready", hypothesisId="XRAY")
+                log.debug("Subdomain requested before it's ready", cat="xray")
                 return "Not Ready", 503
             return config.direct_subdomain
 
@@ -118,10 +120,7 @@ class XrayService:
                     t += " -1"
                 metrics.append(t)
             except Exception as e:
-                log.error(
-                    f"Error processing config link {config_link}: {e}",
-                    hypothesisId="METRIC",
-                )
+                log.error("Couldn't build the metric for a config", cat="metrics", link=config_link, error=str(e))
                 continue
 
         self.latest_metrics = (
@@ -137,8 +136,17 @@ class XrayService:
         """Sleep for `seconds`, returns True if shutdown requested."""
         return self._shutdown_event.wait(timeout=seconds)
 
+    def _log_changed(self, level: str, msg: str, **kw: str) -> None:
+        # The test loop repeats every few minutes; only speak up when the result changes.
+        if (msg, kw) != self._last_result:
+            self._last_result = (msg, kw)
+            getattr(log, level)(msg, cat="test", **kw)
+
     def background_job(self) -> None:
-        log.info("start bg job", hypothesisId="TEST")
+        # Give xray a moment to fetch its config and start, or the first run
+        # fails every config and logs a false alarm.
+        if self._interruptible_sleep(15):
+            return
 
         while not self._shutdown_event.is_set():
             if not config.initialized:
@@ -146,23 +154,13 @@ class XrayService:
                     break
                 continue
 
-            config_links = config.get_config_links()
-            if not config_links:
-                log.info("No config links found, waiting...", hypothesisId="TEST")
-                if self._interruptible_sleep(60):
-                    break
-                continue
-
             valid_links = [
                 link
-                for link in config_links
+                for link in config.get_config_links()
                 if link.startswith(("vmess://", "vless://"))
             ]
-
             if not valid_links:
-                log.info(
-                    "No valid vmess/vless links found, waiting...", hypothesisId="TEST"
-                )
+                self._log_changed("warning", "No vless/vmess links to test")
                 if self._interruptible_sleep(60):
                     break
                 continue
@@ -170,9 +168,7 @@ class XrayService:
             with open(CONFIGS_CSV, "w", encoding="utf-8") as configs_csv:
                 configs_csv.write("\n".join(valid_links))
 
-            exec_command(["cat", str(CONFIGS_CSV)])
-
-            log.info("start xray testing...", hypothesisId="TEST")
+            log.debug("Testing configs", cat="test", count=len(valid_links))
             knife_cmd = [
                 "xray-knife",
                 "http",
@@ -199,91 +195,47 @@ class XrayService:
             ]
             if is_debug():
                 knife_cmd.append("--verbose")
-            exec_command(knife_cmd)
+            result = exec_command(knife_cmd, capture_output=not is_debug())
 
             self.valid_configs = csv_to_dict(str(VALID_CSV))
-            log.debug(
-                "Valid configs from CSV",
-                hypothesisId="TEST",
-                count=len(self.valid_configs),
-                keys=list(self.valid_configs.keys()),
-            )
-
-            success = True
-            if self.valid_configs:
-                success = self.update_metrics(self.valid_configs)
+            failed = [
+                f'{parse_config_link(link)["name"]} ({row.get("failure_kind") or row.get("reason") or "failed"})'
+                for link, row in self.valid_configs.items()
+                if row.get("status") != "passed"
+            ]
+            passed = f"{len(self.valid_configs) - len(failed)}/{len(self.valid_configs)}"
+            if not self.valid_configs:
+                self._log_changed("error", "xray-knife gave no results")
+                sys.stderr.write((result.stdout or "") + (result.stderr or ""))
+            elif failed:
+                self._log_changed("warning", "Some configs failing", passed=passed, failed=", ".join(failed))
             else:
-                log.info(
-                    "No valid configurations found after testing.", hypothesisId="TEST"
-                )
-                success = False
+                self._log_changed("info", "All configs passing", passed=passed)
 
-            log.info(f"xray test done - success: {success}", hypothesisId="TEST")
-
+            success = bool(self.valid_configs) and self.update_metrics(self.valid_configs)
             sleep_duration = 300 if success else 15
             if self._interruptible_sleep(sleep_duration):
                 break
 
-        log.info("Background job shutting down", hypothesisId="TEST")
-
     def cert_management_job(self) -> None:
-        while not self._shutdown_event.is_set():
-            if not config.initialized:
-                if self._shutdown_event.wait(timeout=5):
-                    break
+        # initialize() already issued or renewed the cert at boot, so wait first.
+        # Daily is cheap since acme.sh is a quiet no-op until renewal is due.
+        while not self._shutdown_event.wait(timeout=86400):
+            if not (config.cf_api_token and config.direct_subdomain):
                 continue
-
-            if config.cf_api_token and config.direct_subdomain:
-                result = exec_command(
-                    [
-                        str(ACME_SH_PATH / "acme.sh"),
-                        "--renew",
-                        "--dns",
-                        "dns_cf",
-                        "-d",
-                        config.direct_subdomain,
-                    ],
-                    # DEBUG=0: our app runs with DEBUG=true, but acme.sh reads
-                    # DEBUG as a numeric log level and spams "integer expected".
-                    env={"CF_Token": config.cf_api_token or "", "DEBUG": "0"},
-                )
-                if result.returncode == 0:
-                    # Cert files on the shared acme volume are now updated.
-                    # Reload certs into config so the /config endpoint serves fresh PEMs.
-                    if config.reload_certs():
-                        log.info(
-                            "In-memory certs and xray_config updated after renewal",
-                            hypothesisId="CERT",
-                        )
-                    else:
-                        log.error(
-                            "reload_certs failed after renewal; xray will serve stale cert until restart",
-                            hypothesisId="CERT",
-                        )
-                    # Write a flag file so that nginx can detect the renewal and reload.
-                    try:
-                        flag_path = "/var/log/compassvpn/.cert_renewed"
-                        with open(flag_path, "w", encoding="utf-8") as f:
-                            import time as _time
-                            f.write(str(_time.time()))
-                        log.info(
-                            "Cert renewed; wrote reload flag for nginx",
-                            hypothesisId="CERT",
-                            flag=flag_path,
-                        )
-                    except Exception as e:
-                        log.error(
-                            "Cert renewed but failed to write reload flag",
-                            hypothesisId="CERT",
-                            error=str(e),
-                        )
-                # 30-day sleep, interruptible
-                if self._shutdown_event.wait(timeout=86400 * 30):
-                    break
-            else:
-                if self._shutdown_event.wait(timeout=60):
-                    break
-        log.info("Cert management job shutting down", hypothesisId="CERT")
+            # 2 means it isn't due yet; run_acme logs real failures
+            if config.run_acme(f"--renew --dns dns_cf -d {config.direct_subdomain}") != 0:
+                continue
+            # Bumps the served config so xray's hourly watcher reloads the cert
+            if not config.reload_certs():
+                log.error("Cert renewed, but xray keeps the old one until it restarts", cat="cert")
+            # nginx watches this file and reloads when it changes
+            try:
+                with open("/var/log/compassvpn/.cert_renewed", "w", encoding="utf-8") as f:
+                    f.write(str(time.time()))
+            except OSError as e:
+                log.error("Cert renewed, but couldn't tell nginx to reload", cat="cert", error=str(e))
+            log.info("TLS cert renewed", cat="cert", domain=config.direct_subdomain)
 
     def run(self) -> None:
         config.initialize()
@@ -296,7 +248,8 @@ class XrayService:
         cert_thread.daemon = True
         cert_thread.start()
 
-        self.app.run(host="0.0.0.0", port=5000, debug=False)
+        # make_server skips the dev-server banner that app.run prints
+        make_server("0.0.0.0", 5000, self.app, threaded=True).serve_forever()
 
 
 if __name__ == "__main__":

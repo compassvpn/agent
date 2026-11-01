@@ -34,15 +34,15 @@ def load_env(
                         except ValueError:
                             continue
             log.debug(
-                "Env loaded from file",
-                hypothesisId="CFG",
+                "Loaded env_file",
+                cat="config",
                 path=file_path,
                 count=len(env_vars),
             )
         except Exception as e:
             log.debug(
-                "Error loading env file",
-                hypothesisId="CFG",
+                "Couldn't load env_file",
+                cat="config",
                 path=file_path,
                 error=str(e),
             )
@@ -56,7 +56,7 @@ def write_env(
     file_path: str = str(ENV_FILE),
 ) -> None:
     """Writes configuration data to an env file, preserving schema order if provided."""
-    log.debug("Writing env file", hypothesisId="CFG", path=file_path)
+    log.debug("Writing env_file", cat="config", path=file_path)
     # Only load from file, do NOT include os.environ to avoid polluting env_file
     original_config = load_env(file_path, include_os_environ=False)
     lines_to_write: List[str] = []
@@ -85,7 +85,7 @@ def write_env(
         with open(file_path, "w", newline="", encoding="utf-8") as f:
             f.writelines(lines_to_write)
     except Exception as e:
-        log.error(f"Error writing {file_path}: {e}", hypothesisId="CFG")
+        log.error("Couldn't write env_file", cat="config", path=file_path, error=str(e))
         raise e
 
 
