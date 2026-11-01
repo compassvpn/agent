@@ -59,8 +59,51 @@ _XHTTP_CLIENT = {
     "sessionIDLength": "32-32",
     "seqPlacement": "cookie",
     "seqKey": "rev",
+    # Tops out at the server's default scMaxEachPostBytes. xray 413s bigger
+    # posts, and so does nginx's 1m body limit on 8880.
+    "scMaxEachPostBytes": "500000-1000000",
+    "scMinPostsIntervalMs": "15-45",
 }
-_XHTTP_EXTRA = quote(json.dumps(_XHTTP_CLIENT, separators=(",", ":")), safe="")
+
+
+# Chrome stable major for the xhttp link headers, bumped by hand. The raw-http
+# mask keeps its own version on purpose, since the server checks that one.
+_CHROME = 156
+
+
+def _sec_ch_ua(v: int) -> str:
+    # Chromium's GREASE brand list, which it shuffles by major version
+    g = " (:-./);=?_"
+    brands = [f'"Not{g[v % 11]}A{g[(v + 1) % 11]}Brand";v="{("8", "99", "24")[v % 3]}"', f'"Chromium";v="{v}"', f'"Google Chrome";v="{v}"']
+    order = ((0, 1, 2), (0, 2, 1), (1, 0, 2), (1, 2, 0), (2, 0, 1), (2, 1, 0))[v % 6]
+    return ", ".join(b for _, b in sorted(zip(order, brands)))
+
+
+def _xhttp_client(host: str, scheme: str) -> Dict[str, Any]:
+    # Chrome on Windows doing a same-origin fetch(). Any User-Agent turns off
+    # xray's own browser headers, so the whole set lives here. Chrome only
+    # sends the client hints, Sec-Fetch-* and Priority over https. No
+    # Accept-Encoding: Go only gunzips replies when it adds that header itself.
+    headers = {
+        "User-Agent": f"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/{_CHROME}.0.0.0 Safari/537.36",
+        "Accept": "*/*",
+        "Accept-Language": "fa,en-US;q=0.9,en;q=0.8",
+        "Referer": f"{scheme}://{host}/",
+    }
+    if scheme == "https":
+        headers.update(
+            {
+                "Sec-CH-UA": _sec_ch_ua(_CHROME),
+                "Sec-CH-UA-Mobile": "?0",
+                "Sec-CH-UA-Platform": '"Windows"',
+                "Sec-Fetch-Site": "same-origin",
+                "Sec-Fetch-Mode": "cors",
+                "Sec-Fetch-Dest": "empty",
+                "Priority": "u=1, i",
+            }
+        )
+    return {**_XHTTP_CLIENT, "headers": headers}
+
 
 # Second nginx port for the xhttp nontls download leg. nginx sends both ports
 # to the same xray listener, which is what pairs upload and download. It's a
@@ -70,16 +113,17 @@ _XHTTP_DOWNLOAD_PORT = 2052
 
 def _xhttp_split_extra(address: str, host: str, path: str) -> str:
     # The download leg builds its requests only from the inner xhttpSettings,
-    # so the padding, session and seq keys go in again, plus path and host.
+    # so the client settings go in again, plus path and host.
+    client = _xhttp_client(host, "http")
     download = {
         "address": address,
         "port": _XHTTP_DOWNLOAD_PORT,
         "network": "xhttp",
         "security": "none",
-        "xhttpSettings": {**_XHTTP_CLIENT, "path": path, "host": host},
+        "xhttpSettings": {**client, "path": path, "host": host},
     }
     return quote(
-        json.dumps({**_XHTTP_CLIENT, "downloadSettings": download}, separators=(",", ":")),
+        json.dumps({**client, "downloadSettings": download}, separators=(",", ":")),
         safe="",
     )
 
@@ -635,7 +679,7 @@ class XrayConfig:
                     "reality_sni": self.reality_sni,
                     "vless_enc_decryption": self.vless_enc_decryption,
                     "vless_enc_encryption": self.vless_enc_encryption,
-                    "xhttp_extra": _XHTTP_EXTRA,
+                    "xhttp_extra": quote(json.dumps(_xhttp_client(self.subdomain or "", "https"), separators=(",", ":")), safe=""),
                     "vless_enc_decryption_raw_http": self.vless_enc_decryption_raw_http,
                     "vless_enc_encryption_raw_http": self.vless_enc_encryption_raw_http,
                     "raw_http_fm": quote(json.dumps(raw_http_mask, separators=(",", ":")), safe=""),
