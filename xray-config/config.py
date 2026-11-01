@@ -62,7 +62,7 @@ _XHTTP_CLIENT = {
     # Tops out at the server's default scMaxEachPostBytes. xray 413s bigger
     # posts, and so does nginx's 1m body limit on 8880.
     "scMaxEachPostBytes": "500000-1000000",
-    "scMinPostsIntervalMs": "15-45",
+    "scMinPostsIntervalMs": "20-40",
 }
 
 
