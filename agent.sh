@@ -56,7 +56,8 @@ start() {
     if [ "${debug,,}" != "true" ]; then
         export ANSIBLE_DISPLAY_OK_HOSTS=false ANSIBLE_DISPLAY_SKIPPED_HOSTS=false
     fi
-    export ANSIBLE_CALLBACK_RESULT_FORMAT=yaml
+    # One line per task, and failures as one line with the error
+    export ANSIBLE_STDOUT_CALLBACK=community.general.unixy
 
     # Run Ansible from the pinned toolchain in pyproject.toml / uv.lock, so every
     # server gets the exact same versions. --frozen uses the committed lock as-is.
@@ -66,8 +67,15 @@ start() {
         -e "auto_update=${AUTO_UPDATE:-}" \
         -e "redeploy_interval=${REDEPLOY_INTERVAL:-}"
 
-    echo
-    echo "Done. Metrics should show up in Grafana within 5 to 10 minutes"
+    cat <<'EOF'
+
+Done. Metrics should show up in Grafana within 5 to 10 minutes.
+
+Useful commands:
+  ./agent.sh configs   print the VPN config links
+  ./agent.sh logs      tail the container logs
+  ./agent.sh help      show all commands
+EOF
 }
 
 # Stop the stack and remove its containers, networks, volumes and images.

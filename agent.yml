@@ -479,9 +479,10 @@
     - name: Deploy the stack
       tags: deploy
       block:
+        # Quiet, or the whole build log lands in agent.sh's output. Errors still print.
         - name: Build and (re)start all services
           ansible.builtin.command:
-            cmd: docker compose up -d --build --force-recreate --remove-orphans
+            cmd: docker compose --progress quiet up -d --build --force-recreate --remove-orphans
             chdir: "{{ project_dir }}"
           changed_when: true
 
