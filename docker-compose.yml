@@ -126,6 +126,9 @@ services:
       - "/var/log/nginx:/var/log/nginx:rw"
       - "./shared_lib:/shared_lib:ro"
     restart: always
+    # Fast shutdown. The image's SIGQUIT waits on open connections, which is
+    # pointless once xray is already down.
+    stop_signal: SIGTERM
     env_file:
       - env_file
     ports:
