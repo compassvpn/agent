@@ -583,7 +583,7 @@ class XrayConfig:
                         ACME_SH_PATH / f"{self.direct_subdomain}_ecc" / "fullchain.cer"
                     )
                     if cert_path.exists():
-                        log.debug("Cert found, checking renewal", cat="cert")
+                        log.debug("TLS cert found, checking renewal", cat="cert")
                         self.run_acme(
                             f"{ssl_provider_server} --renew --dns dns_cf -d {self.direct_subdomain}"
                         )
@@ -1131,7 +1131,7 @@ Endpoint = engage.cloudflareclient.com:2408
         cert_path = ACME_SH_PATH / f"{self.direct_subdomain}_ecc" / "fullchain.cer"
         key_path = ACME_SH_PATH / f"{self.direct_subdomain}_ecc" / f"{self.direct_subdomain}.key"
         if not cert_path.exists() or not key_path.exists():
-            log.error("Cert files missing after renewal", cat="cert")
+            log.error("TLS cert files missing after renewal", cat="cert")
             return False
         self._cert_serial += 1
         self.xray_config["_cert_serial"] = self._cert_serial

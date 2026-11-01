@@ -61,7 +61,7 @@ LAST_FLAG_TIME=$(cat "$CERT_FLAG" 2>/dev/null || true)
             if [ "$CURRENT_TIME" != "$LAST_FLAG_TIME" ]; then
                 LAST_FLAG_TIME="$CURRENT_TIME"
                 if out=$(nginx -s reload 2>&1); then
-                    log info cert "Cert renewed, nginx reloaded"
+                    log info cert "TLS cert renewed, nginx reloaded"
                 else
                     log error nginx "Couldn't reload nginx"
                     echo "$out"

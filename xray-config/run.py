@@ -136,11 +136,13 @@ class XrayService:
         """Sleep for `seconds`, returns True if shutdown requested."""
         return self._shutdown_event.wait(timeout=seconds)
 
-    def _log_changed(self, level: str, msg: str, **kw: str) -> None:
+    def _log_changed(self, level: str, msg: str, **kw: str) -> bool:
         # The test loop repeats every few minutes; only speak up when the result changes.
-        if (msg, kw) != self._last_result:
-            self._last_result = (msg, kw)
-            getattr(log, level)(msg, cat="test", **kw)
+        if (msg, kw) == self._last_result:
+            return False
+        self._last_result = (msg, kw)
+        getattr(log, level)(msg, cat="test", **kw)
+        return True
 
     def background_job(self) -> None:
         # Give xray a moment to fetch its config and start, or the first run
@@ -205,10 +207,11 @@ class XrayService:
             ]
             passed = f"{len(self.valid_configs) - len(failed)}/{len(self.valid_configs)}"
             if not self.valid_configs:
-                self._log_changed("error", "xray-knife gave no results")
-                sys.stderr.write((result.stdout or "") + (result.stderr or ""))
+                if self._log_changed("error", "xray-knife gave no results"):
+                    sys.stderr.write((result.stdout or "") + (result.stderr or ""))
             elif failed:
-                self._log_changed("warning", "Some configs failing", passed=passed, failed=", ".join(failed))
+                msg = "All configs failing" if len(failed) == len(self.valid_configs) else "Some configs failing"
+                self._log_changed("warning", msg, passed=passed, failed=", ".join(failed))
             else:
                 self._log_changed("info", "All configs passing", passed=passed)
 
@@ -228,13 +231,13 @@ class XrayService:
                 continue
             # Bumps the served config so xray's hourly watcher reloads the cert
             if not config.reload_certs():
-                log.error("Cert renewed, but xray keeps the old one until it restarts", cat="cert")
+                log.error("TLS cert renewed, but xray keeps the old one until it restarts", cat="cert")
             # nginx watches this file and reloads when it changes
             try:
                 with open("/var/log/compassvpn/.cert_renewed", "w", encoding="utf-8") as f:
                     f.write(str(time.time()))
             except OSError as e:
-                log.error("Cert renewed, but couldn't tell nginx to reload", cat="cert", error=str(e))
+                log.error("TLS cert renewed, but couldn't tell nginx to reload", cat="cert", error=str(e))
             log.info("TLS cert renewed", cat="cert", domain=config.direct_subdomain)
 
     def run(self) -> None:
