@@ -131,9 +131,9 @@ configs() {
         latency=$(echo "$line" | awk '{print $NF}')
 
         if [ "$latency" = "-1" ]; then
-            echo "${config_name:-unknown} (down)"
+            echo "${config_name:-unknown} (-1)"
         else
-            echo "${config_name:-unknown} (up, ${latency} ms)"
+            echo "${config_name:-unknown} (${latency} ms)"
         fi
         echo "${config_link}"
         echo
