@@ -93,4 +93,15 @@ config_watcher() {
 }
 config_watcher &
 
-monit -I
+# monit prints plain lines; reword the restart ones to match ours and keep its
+# startup chatter for debug.
+monit -I 2>&1 | while IFS= read -r line; do
+    name=$(printf '%s' "$line" | sed -n "s/^'\([^']*\)'.*/\1/p")
+    case "$line" in
+        *"process is not running") log warning monit "Process stopped, restarting it" "name=$name" ;;
+        *"process is running with pid"*) log info monit "Process is back up" "name=$name" ;;
+        *failed*|*unmonitor*) log warning monit "$line" ;;
+        *"trying to restart"|*" start: "*|*"Monit id"*|*"Stored in"*|*"Starting Monit"*|*" started") debug monit "$line" ;;
+        *) log info monit "$line" ;;
+    esac
+done

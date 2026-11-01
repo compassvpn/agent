@@ -6,7 +6,8 @@ DEBUG=$(printf '%s' "${DEBUG:-false}" | tr -d "\"'" | tr '[:upper:]' '[:lower:]'
 
 # log <level> <cat> <msg> [key=value ...]
 log() {
-    _level=$1 _cat=$2 _msg=$3
+    # Escape quotes so text from other tools can't break the msg field
+    _level=$1 _cat=$2 _msg=$(printf '%s' "$3" | sed 's/"/\\"/g')
     shift 3
     printf 'time=%s level=%s cat=%s msg="%s"%s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$_level" "$_cat" "$_msg" "${*:+ $*}"
 }

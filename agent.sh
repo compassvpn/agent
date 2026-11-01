@@ -51,8 +51,6 @@ start() {
         curl -LsSf https://astral.sh/uv/install.sh | sh
     fi
 
-    # Run Ansible from the pinned toolchain in pyproject.toml / uv.lock, so every
-    # server gets the exact same versions. --frozen uses the committed lock as-is.
     # Only show tasks that changed or failed, unless DEBUG is on.
     local debug="${DEBUG:-false}"
     if [ "${debug,,}" != "true" ]; then
@@ -60,8 +58,11 @@ start() {
     fi
     export ANSIBLE_CALLBACK_RESULT_FORMAT=yaml
 
+    # Run Ansible from the pinned toolchain in pyproject.toml / uv.lock, so every
+    # server gets the exact same versions. --frozen uses the committed lock as-is.
+    # -i localhost, skips the "no inventory" warnings.
     echo "Setting up the host"
-    uv run --frozen ansible-playbook agent.yml \
+    uv run --frozen ansible-playbook -i localhost, agent.yml \
         -e "auto_update=${AUTO_UPDATE:-}" \
         -e "redeploy_interval=${REDEPLOY_INTERVAL:-}"
 
