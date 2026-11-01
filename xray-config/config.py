@@ -87,7 +87,7 @@ def _xhttp_client(host: str, scheme: str) -> Dict[str, Any]:
     headers = {
         "User-Agent": f"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/{_CHROME}.0.0.0 Safari/537.36",
         "Accept": "*/*",
-        "Accept-Language": "fa,en-US;q=0.9,en;q=0.8",
+        "Accept-Language": "en-US,en;q=0.9,fa;q=0.8",
         "Referer": f"{scheme}://{host}/",
     }
     if scheme == "https":
@@ -122,8 +122,11 @@ def _xhttp_split_extra(address: str, host: str, path: str) -> str:
         "security": "none",
         "xhttpSettings": {**client, "path": path, "host": host},
     }
+    # Chrome sends Origin on every POST but not on same-origin GETs, so only
+    # the upload side gets it.
+    upload = {**client, "headers": {**client["headers"], "Origin": f"http://{host}"}}
     return quote(
-        json.dumps({**client, "downloadSettings": download}, separators=(",", ":")),
+        json.dumps({**upload, "downloadSettings": download}, separators=(",", ":")),
         safe="",
     )
 
