@@ -491,7 +491,8 @@
             "sessionIDPlacement": "cookie",
             "sessionIDKey": "sid",
             "seqPlacement": "cookie",
-            "seqKey": "rev"
+            "seqKey": "rev",
+            "scMaxBufferedPosts": 1000
           }
         },
         "sniffing": {
