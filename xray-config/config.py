@@ -114,8 +114,8 @@ def _xhttp_client(host: str, scheme: str) -> Dict[str, Any]:
 _XHTTP_DOWNLOAD_PORT = 2052
 
 _XHTTP_CDN_UPLOAD = {
-    "scMaxEachPostBytes": 16000,
-    "scMinPostsIntervalMs": 5,
+    "scMaxEachPostBytes": 20000,
+    "scMinPostsIntervalMs": 10,
     "xmux": {"hMaxRequestTimes": 1, "cMaxReuseTimes": 1},
 }
 
