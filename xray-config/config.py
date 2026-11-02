@@ -113,11 +113,6 @@ def _xhttp_client(host: str, scheme: str) -> Dict[str, Any]:
 # port Cloudflare proxies, so the cdn link can use it too.
 _XHTTP_DOWNLOAD_PORT = 2052
 
-# TCI blackholes every upload connection to Cloudflare after 26-50 KB, so the
-# cdn link sends each post on a fresh connection. 16000 fits one ~8.2 KB VLESS
-# record per post and the 5 ms gap caps upload near 12 Mbps. cMaxReuseTimes
-# keeps parallel sessions off each other's connections. The inbound holds 1000
-# posts, since posts on separate connections arrive out of order.
 _XHTTP_CDN_UPLOAD = {
     "scMaxEachPostBytes": 16000,
     "scMinPostsIntervalMs": 5,
@@ -144,7 +139,6 @@ def _xhttp_split_extra(address: str, host: str, port: int, path: str, cdn: bool)
     upload["headers"]["Origin"] = f"http://{up}"
     if cdn:
         upload.update(_XHTTP_CDN_UPLOAD)
-        # xray never closes these one-post connections, so Cloudflare does it
         upload["headers"]["Connection"] = "close"
     return quote(
         json.dumps({**upload, "downloadSettings": download}, separators=(",", ":")),
