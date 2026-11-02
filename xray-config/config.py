@@ -113,8 +113,14 @@ def _xhttp_client(host: str, scheme: str) -> Dict[str, Any]:
 # port Cloudflare proxies, so the cdn link can use it too.
 _XHTTP_DOWNLOAD_PORT = 2052
 
+_XHTTP_CDN_UPLOAD = {
+    "scMaxEachPostBytes": 16000,
+    "scMinPostsIntervalMs": 5,
+    "xmux": {"hMaxRequestTimes": 1, "cMaxReuseTimes": 1},
+}
 
-def _xhttp_split_extra(address: str, host: str, port: int, path: str) -> str:
+
+def _xhttp_split_extra(address: str, host: str, port: int, path: str, cdn: bool) -> str:
     # The download leg builds its requests only from the inner xhttpSettings,
     # so the client settings go in again, plus path and host. Chrome puts a
     # non-default port in Host, Referer and Origin, so each leg carries its
@@ -131,6 +137,9 @@ def _xhttp_split_extra(address: str, host: str, port: int, path: str) -> str:
     # the upload side gets it.
     upload = _xhttp_client(up, "http")
     upload["headers"]["Origin"] = f"http://{up}"
+    if cdn:
+        upload.update(_XHTTP_CDN_UPLOAD)
+        upload["headers"]["Connection"] = "close"
     return quote(
         json.dumps({**upload, "downloadSettings": download}, separators=(",", ":")),
         safe="",
@@ -747,7 +756,7 @@ class XrayConfig:
                         u = urlparse(replica["link"])
                         replica["link"] = replica["link"].replace(
                             "$xhttp_split_extra",
-                            _xhttp_split_extra(u.hostname, xs.get("host", ""), u.port, xs["path"]),
+                            _xhttp_split_extra(u.hostname, xs.get("host", ""), u.port, xs["path"], replica.get("cloudflare", False)),
                         )
                     replica["_replica_index"] = idx
                     if name in _NGINX_PROXY_MAP:
