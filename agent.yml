@@ -32,7 +32,6 @@
       - 2087
       - 8443
       - 8880
-      - 2052
       - 8000
 
     # Host netns only. Containers don't inherit most of these, so the keys the
