@@ -108,9 +108,8 @@ def _xhttp_client(host: str, scheme: str) -> Dict[str, Any]:
     return {**_XHTTP_CLIENT, "headers": headers}
 
 
-# Second nginx port for the xhttp nontls download leg. nginx sends both ports
-# to the same xray listener, which is what pairs upload and download. It's a
-# port Cloudflare proxies, so the cdn link can use it too.
+# Second nginx port for the xhttp direct link's download leg. nginx sends both
+# ports to the same xray listener, which is what pairs upload and download.
 _XHTTP_DOWNLOAD_PORT = 2052
 
 _XHTTP_CDN_UPLOAD = {
@@ -120,7 +119,13 @@ _XHTTP_CDN_UPLOAD = {
 }
 
 
-def _xhttp_split_extra(address: str, host: str, port: int, path: str, cdn: bool) -> str:
+def _xhttp_cdn_extra(host: str) -> str:
+    extra = {**_xhttp_client(host, "http"), **_XHTTP_CDN_UPLOAD}
+    extra["headers"]["Connection"] = "close"
+    return quote(json.dumps(extra, separators=(",", ":")), safe="")
+
+
+def _xhttp_split_extra(address: str, host: str, port: int, path: str) -> str:
     # The download leg builds its requests only from the inner xhttpSettings,
     # so the client settings go in again, plus path and host. Chrome puts a
     # non-default port in Host, Referer and Origin, so each leg carries its
@@ -137,9 +142,6 @@ def _xhttp_split_extra(address: str, host: str, port: int, path: str, cdn: bool)
     # the upload side gets it.
     upload = _xhttp_client(up, "http")
     upload["headers"]["Origin"] = f"http://{up}"
-    if cdn:
-        upload.update(_XHTTP_CDN_UPLOAD)
-        upload["headers"]["Connection"] = "close"
     return quote(
         json.dumps({**upload, "downloadSettings": download}, separators=(",", ":")),
         safe="",
@@ -698,6 +700,7 @@ class XrayConfig:
                     "vless_enc_decryption": self.vless_enc_decryption,
                     "vless_enc_encryption": self.vless_enc_encryption,
                     "xhttp_extra": quote(json.dumps(_xhttp_client(self.subdomain or "", "https"), separators=(",", ":")), safe=""),
+                    "xhttp_cdn_extra": _xhttp_cdn_extra(f"{self.subdomain or ''}:8880"),
                     "vless_enc_decryption_raw_http": self.vless_enc_decryption_raw_http,
                     "vless_enc_encryption_raw_http": self.vless_enc_encryption_raw_http,
                     "raw_http_fm": quote(json.dumps(raw_http_mask, separators=(",", ":")), safe=""),
@@ -756,7 +759,7 @@ class XrayConfig:
                         u = urlparse(replica["link"])
                         replica["link"] = replica["link"].replace(
                             "$xhttp_split_extra",
-                            _xhttp_split_extra(u.hostname, xs.get("host", ""), u.port, xs["path"], replica.get("cloudflare", False)),
+                            _xhttp_split_extra(u.hostname, xs.get("host", ""), u.port, xs["path"]),
                         )
                     replica["_replica_index"] = idx
                     if name in _NGINX_PROXY_MAP:
