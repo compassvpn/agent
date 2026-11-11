@@ -15,7 +15,7 @@
     auto_update: ""
     redeploy_interval: ""
 
-    # Tacked onto the box's own resolv.conf as a backup.
+    # Added to the end of the box's resolv.conf as a backup DNS.
     fallback_dns: "1.1.1.2"
 
     # Only if there's no swap, so xray doesn't get OOM-killed on small boxes.
