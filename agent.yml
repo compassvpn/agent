@@ -15,18 +15,14 @@
     auto_update: ""
     redeploy_interval: ""
 
-    # Appended to whatever resolv.conf the box already has, so its own DNS stays
-    # first. Probing with ping kept 127.0.0.53 even with systemd-resolved
-    # masked, since loopback always answers ping, and every lookup failed once.
+    # Tacked onto the box's own resolv.conf as a backup.
     fallback_dns: "1.1.1.2"
 
-    # Only used when the box has no swap at all. On a small box with no swap,
-    # a memory spike gets xray OOM-killed.
+    # Only if there's no swap, so xray doesn't get OOM-killed on small boxes.
     swap_file: /swapfile
     swap_size_mb: 2048
 
-    # Max disk the systemd journal may use. Without it journald takes up to
-    # 10% of the disk (max 4 GB).
+    # Journal size cap. Default is 10% of disk, up to 4 GB.
     journald_max_use: 200M
 
     # The metrics ports (29100, 25000, 29550) belong nowhere near this list -
@@ -205,7 +201,7 @@
           changed_when: false
           when: not openvz_file.stat.exists
 
-        # Containers like LXC can't swapon, so a failure here just means no swap.
+        # LXC and friends can't swapon, so failing here is fine.
         - name: Add a swapfile when the box has none
           ansible.builtin.shell: |
             set -e
