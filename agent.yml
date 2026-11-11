@@ -20,8 +20,8 @@
     # masked, since loopback always answers ping, and every lookup failed once.
     fallback_dns: "1.1.1.2"
 
-    # Only used when the box has no swap at all. GOMEMLIMIT is soft, so on a
-    # small box with no swap a spike gets xray OOM-killed.
+    # Only used when the box has no swap at all. On a small box with no swap,
+    # a memory spike gets xray OOM-killed.
     swap_file: /swapfile
     swap_size_mb: 2048
 
