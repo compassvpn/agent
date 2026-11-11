@@ -15,10 +15,10 @@
     auto_update: ""
     redeploy_interval: ""
 
-    # Added to the end of the box's resolv.conf as a backup DNS.
+    # Added to the end of the server's resolv.conf as a backup DNS.
     fallback_dns: "1.1.1.2"
 
-    # Only if there's no swap, so xray doesn't get OOM-killed on small boxes.
+    # Only if there's no swap, so xray doesn't get OOM-killed on small servers.
     swap_file: /swapfile
     swap_size_mb: 2048
 
@@ -201,7 +201,7 @@
           when: not openvz_file.stat.exists
 
         # LXC and friends can't swapon, so failing here is fine.
-        - name: Add a swapfile when the box has none
+        - name: Add a swapfile when the server has none
           ansible.builtin.shell: |
             set -e
             trap 'rm -f {{ swap_file }}' ERR
