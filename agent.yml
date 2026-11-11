@@ -15,11 +15,14 @@
     auto_update: ""
     redeploy_interval: ""
 
-    # Priority order, and unreachable ones are dropped before we write
-    # resolv.conf, so we never swap working DNS for dead entries.
-    dns_servers:
-      - "127.0.0.53"
-      - "1.1.1.2"
+    # Added to the end of the server's resolv.conf as a backup DNS.
+    fallback_dns: "1.1.1.2"
+
+    # Only if there's no swap, so xray doesn't get OOM-killed on small servers.
+    swap_file: /swapfile
+    swap_size_mb: 2048
+
+    journald_max_use: 1G
 
     # The metrics ports (29100, 25000, 29550) belong nowhere near this list -
     # they're loopback-only and scraped over loopback.
@@ -147,19 +150,6 @@
             line: "127.0.1.1 {{ ansible_facts['hostname'] }}"
             state: present
 
-        - name: Probe configured DNS servers
-          ansible.builtin.command: "ping -c1 -W1 {{ item }}"
-          register: dns_ping
-          changed_when: false
-          failed_when: false
-          loop: "{{ dns_servers }}"
-          loop_control:
-            label: "{{ item }}"
-
-        - name: Keep only the reachable DNS servers
-          ansible.builtin.set_fact:
-            reachable_dns: "{{ dns_ping.results | selectattr('rc', 'equalto', 0) | map(attribute='item') | list }}"
-
         - name: Back up /etc/resolv.conf once
           ansible.builtin.copy:
             src: /etc/resolv.conf
@@ -167,23 +157,12 @@
             remote_src: true
             mode: "0644"
             force: false
-          when: reachable_dns | length > 0
 
-        - name: Write reachable DNS servers to /etc/resolv.conf
-          ansible.builtin.copy:
-            dest: /etc/resolv.conf
-            mode: "0644"
-            content: |
-              {% for dns in reachable_dns %}
-              nameserver {{ dns }}
-              {% endfor %}
-          when: reachable_dns | length > 0
-
-        - name: Warn when no DNS server is reachable (leaving resolv.conf untouched)
-          ansible.builtin.debug:
-            msg: "No DNS server answered ({{ dns_servers | join(', ') }}), leaving /etc/resolv.conf as is"
-          changed_when: true   # so it still shows when agent.sh hides ok tasks
-          when: reachable_dns | length == 0
+        - name: Add the fallback DNS server to /etc/resolv.conf
+          ansible.builtin.lineinfile:
+            path: /etc/resolv.conf
+            line: "nameserver {{ fallback_dns }}"
+            state: present
 
         - name: Set timezone to UTC
           community.general.timezone:
@@ -214,6 +193,34 @@
           ansible.builtin.command: sysctl --system
           changed_when: false
           when: not openvz_file.stat.exists
+
+        - name: Check for active swap
+          ansible.builtin.command: swapon --show --noheadings
+          register: swap_check
+          changed_when: false
+          when: not openvz_file.stat.exists
+
+        # LXC and friends can't swapon, so failing here is fine.
+        - name: Add a swapfile when the server has none
+          ansible.builtin.shell: |
+            set -e
+            trap 'rm -f {{ swap_file }}' ERR
+            fallocate -l {{ swap_size_mb }}M {{ swap_file }} || dd if=/dev/zero of={{ swap_file }} bs=1M count={{ swap_size_mb }}
+            chmod 600 {{ swap_file }}
+            mkswap {{ swap_file }}
+            swapon {{ swap_file }}
+          args:
+            executable: /bin/bash
+          register: swap_add
+          failed_when: false
+          when: not openvz_file.stat.exists and swap_check.stdout | trim == ''
+
+        - name: Keep the swapfile on across reboots
+          ansible.builtin.lineinfile:
+            path: /etc/fstab
+            line: "{{ swap_file }} none swap sw 0 0"
+            state: present
+          when: swap_add.rc | default(1) == 0
 
         - name: Ensure UFW is installed
           ansible.builtin.apt:
@@ -357,6 +364,29 @@
           ansible.builtin.command: logrotate -d /etc/logrotate.d/compassvpn
           changed_when: false
           failed_when: false
+
+        - name: Ensure the journald drop-in directory exists
+          ansible.builtin.file:
+            path: /etc/systemd/journald.conf.d
+            state: directory
+            mode: "0755"
+
+        - name: Cap the systemd journal size
+          ansible.builtin.copy:
+            dest: /etc/systemd/journald.conf.d/compassvpn.conf
+            mode: "0644"
+            content: |
+              [Journal]
+              SystemMaxUse={{ journald_max_use }}
+          register: journald_conf
+
+        - name: Restart journald and trim the journal when the cap changed
+          ansible.builtin.shell: |
+            systemctl restart systemd-journald
+            journalctl --vacuum-size={{ journald_max_use }}
+          args:
+            executable: /bin/bash
+          when: journald_conf.changed
 
     # ---- docker ------------------------------------------------------------
     - name: Install Docker
