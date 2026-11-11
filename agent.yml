@@ -23,7 +23,7 @@
     swap_size_mb: 2048
 
     # Journal size cap. Default is 10% of disk, up to 4 GB.
-    journald_max_use: 200M
+    journald_max_use: 1G
 
     # The metrics ports (29100, 25000, 29550) belong nowhere near this list -
     # they're loopback-only and scraped over loopback.
