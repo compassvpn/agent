@@ -68,7 +68,7 @@ _XHTTP_CLIENT = {
 
 # Chrome stable major for the xhttp link headers, bumped by hand. The raw-http
 # mask keeps its own version on purpose, since the server checks that one.
-_CHROME = 156
+_CHROME = 158
 
 
 def _sec_ch_ua(v: int) -> str:

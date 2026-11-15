@@ -1,4 +1,4 @@
-FROM ghcr.io/xtls/xray-core:26.10.21 AS xray-image
+FROM ghcr.io/xtls/xray-core:26.11.9 AS xray-image
 
 FROM python:3.14.8-alpine3.24
 
