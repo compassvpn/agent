@@ -40,7 +40,7 @@ server {
         proxy_set_header Upgrade $http_upgrade;
         proxy_set_header Connection "upgrade";
         proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $http_cf_connecting_ip;
+        proxy_set_header X-Forwarded-For $cdn_client_ip;
         proxy_set_header Host $host;
         proxy_redirect off;
         proxy_read_timeout 315;
@@ -115,7 +115,7 @@ server {
     location /${NGINX_PATH}/quic/cdn/1 {
         access_log off;
         grpc_pass grpc://xray_8445;
-        grpc_set_header X-Forwarded-For $http_cf_connecting_ip;
+        grpc_set_header X-Forwarded-For $cdn_client_ip;
         grpc_read_timeout 315;
         grpc_send_timeout 5m;
         client_body_timeout 5m;
@@ -141,7 +141,7 @@ server {
     location /${NGINX_PATH}/tls/cdn/1 {
         access_log off;
         grpc_pass grpc://xray_8447;
-        grpc_set_header X-Forwarded-For $http_cf_connecting_ip;
+        grpc_set_header X-Forwarded-For $cdn_client_ip;
         grpc_read_timeout 315;
         grpc_send_timeout 5m;
         client_body_timeout 5m;
