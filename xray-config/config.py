@@ -115,9 +115,27 @@ _XHTTP_CDN_UPLOAD = {
 }
 
 
-def _xhttp_cdn_extra(host: str) -> str:
+def _xhttp_cdn_extra(host: str, path: str, download_address: str) -> str:
     extra = {**_xhttp_client(host, "http"), **_XHTTP_CDN_UPLOAD}
     extra["headers"]["Connection"] = "close"
+    # Uploads go through Cloudflare and downloads straight to the server; nginx
+    # sends both to the same inbound. The download leg builds its requests only
+    # from the inner xhttpSettings, so the server-matched keys go in again. No
+    # headers there, to keep the link short (xray then sends its own set).
+    extra["downloadSettings"] = {
+        "address": download_address,
+        "port": 8880,
+        "network": "xhttp",
+        "security": "none",
+        "xhttpSettings": {
+            **{k: v for k, v in _XHTTP_CLIENT.items() if not k.startswith("sc")},
+            "path": path,
+            "host": host,
+        },
+        # Some clients copy the upload's sockopt onto the download leg unless
+        # it has its own.
+        "sockopt": {},
+    }
     return quote(json.dumps(extra, separators=(",", ":")), safe="")
 
 
@@ -246,8 +264,9 @@ def _make_replica(inbound_def: Dict[str, Any], replica_index: int, new_port: int
 
 def _nginx_location_block(path: str, xray_port: int, template: str) -> str:
     # xray trusts X-Forwarded-For from nginx, so never forward what the client
-    # sent: the peer address on direct paths, Cloudflare's header on cdn paths.
-    xff = "$http_cf_connecting_ip" if "/cdn/" in path else "$remote_addr"
+    # sent: the peer address on direct paths, Cloudflare's header on cdn paths
+    # (or the peer when it's missing, see $cdn_client_ip in nginx.conf).
+    xff = "$cdn_client_ip" if "/cdn/" in path else "$remote_addr"
     if template == "hu":
         return (
             f'    location = {path} {{\n'
@@ -674,7 +693,6 @@ class XrayConfig:
                     "vless_enc_encryption": self.vless_enc_encryption,
                     "xhttp_extra": quote(json.dumps(_xhttp_client(self.subdomain or "", "https"), separators=(",", ":")), safe=""),
                     "xhttp_direct_extra": quote(json.dumps(_xhttp_client(f"{self.direct_subdomain or ''}:8880", "http"), separators=(",", ":")), safe=""),
-                    "xhttp_cdn_extra": _xhttp_cdn_extra(f"{self.subdomain or ''}:8880"),
                     "vless_enc_decryption_raw_http": self.vless_enc_decryption_raw_http,
                     "vless_enc_encryption_raw_http": self.vless_enc_encryption_raw_http,
                     "raw_http_fm": quote(json.dumps(raw_http_mask, separators=(",", ":")), safe=""),
@@ -726,6 +744,14 @@ class XrayConfig:
                     if idx > 1:
                         _replica_port += 1
                     replica = _make_replica(ib, idx, port)
+                    # Left unsubstituted above so the download path gets this
+                    # replica's suffix; _make_replica can't reach it inside extra.
+                    if "$xhttp_cdn_extra" in replica.get("link", ""):
+                        xs = replica["inbound"]["streamSettings"]["xhttpSettings"]
+                        replica["link"] = replica["link"].replace(
+                            "$xhttp_cdn_extra",
+                            _xhttp_cdn_extra(f"{xs['host']}:8880", xs["path"], self.direct_subdomain or self.server_ip),
+                        )
                     replica["_replica_index"] = idx
                     if name in _NGINX_PROXY_MAP:
                         replica["_nginx_port"], replica["_nginx_template"] = _NGINX_PROXY_MAP[name]
