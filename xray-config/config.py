@@ -132,8 +132,8 @@ def _xhttp_cdn_extra(host: str, path: str, download_address: str) -> str:
             "path": path,
             "host": host,
         },
-        # Its own sockopt tells MahsaNG not to copy the upload's dialer (and
-        # its fragment) onto this leg.
+        # Some clients copy the upload's sockopt onto the download leg unless
+        # it has its own.
         "sockopt": {},
     }
     return quote(json.dumps(extra, separators=(",", ":")), safe="")
